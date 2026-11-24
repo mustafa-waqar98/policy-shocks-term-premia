@@ -28,8 +28,21 @@ FRED_OUTCOMES = {
     "BAA10Y": "Baa corporate minus 10y Treasury",
     "DTWEXBGS": "Broad trade-weighted dollar",
 }
-# Everything downloaded from FRED (outcomes plus the T-bill rate)
-FRED_SERIES = {**FRED_OUTCOMES, "DTB3": "3-month Treasury bill, discount basis"}
+# Par yields used to build 5y5y forwards (real from TIPS, nominal from Treasuries)
+FRED_FORWARD_INPUTS = {
+    "DGS5": "5y Treasury yield",
+    "DGS10": "10y Treasury yield",
+    "DFII5": "5y TIPS real yield",
+}
+# Everything downloaded from FRED
+FRED_SERIES = {**FRED_OUTCOMES, **FRED_FORWARD_INPUTS, "DTB3": "3-month Treasury bill, discount basis"}
+FORWARD_OUTCOMES = {
+    "fwd_nominal": "5y5y nominal forward",
+    "fwd_expected": "of which: expected rates",
+    "fwd_tp": "of which: term premium",
+    "fwd_real": "5y5y real forward (TIPS)",
+    "fwd_breakeven": "5y5y breakeven inflation",
+}
 
 # ACM settings (Adrian, Crump and Moench 2013)
 ACM_N_FACTORS = 5

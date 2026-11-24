@@ -143,7 +143,7 @@
     <div class="brand">Fed Shocks and the Term Premium<span>US Treasuries</span></div>
     <div class="nav">
       <a href="#curve">Curve</a><a href="#fomc">FOMC</a><a href="#transmission">Transmission</a>
-      <a href="#robustness">Robustness</a><a href="#scenario">Scenarios</a><a href="#validation">Validation</a><a href="#glossary">Glossary</a>
+      <a href="#forwards">Real vs inflation</a><a href="#robustness">Robustness</a><a href="#scenario">Scenarios</a><a href="#validation">Validation</a><a href="#glossary">Glossary</a>
       <a class="btn" href="{{ repo_url }}">GitHub</a>
     </div>
   </div></div>
@@ -261,9 +261,20 @@
     </div>
   </section>
 
+  {% if fig_fwd %}
+  <section id="forwards">
+    <div class="section-head"><span class="idx">04</span><h2>Where the shock lands: far future, real or inflation?</h2></div>
+    <p class="sub">The <b>5y5y forward</b> is the 5-year rate starting 5 years from now. It removes the next five years, where the Fed
+    sets the path directly, so a move here is about the far future. Its move is split two ways: expected rates vs term premium
+    (from the model) and real rate vs breakeven inflation (from TIPS). Response per 10bp shock; whiskers are 90% intervals.
+    TIPS-based pieces start in 2003.</p>
+    <div class="card">{{ fig_fwd|safe }}</div>
+  </section>
+  {% endif %}
+
   {% if robust %}
   <section id="robustness">
-    <div class="section-head"><span class="idx">04</span><h2>Do the results hold up?</h2></div>
+    <div class="section-head"><span class="idx">05</span><h2>Do the results hold up?</h2></div>
     <p class="sub">Each headline result re-estimated on different sets of meetings. Bold numbers are statistically significant
     (90% level); the number underneath is the t-statistic. A result that is bold across the row is robust; one that is bold
     in only one period belongs to that period.</p>
@@ -281,7 +292,7 @@
   {% endif %}
 
   <section id="scenario">
-    <div class="section-head"><span class="idx">05</span><h2>Scenario tool</h2></div>
+    <div class="section-head"><span class="idx">06</span><h2>Scenario tool</h2></div>
     <p class="sub">Size a hypothetical surprise and read off the historical average response. Useful before a meeting: what has a hawkish dot plot
     (a path shock) or a surprise cut (a target shock) typically done to the curve? Linear in the shock; point estimates only.</p>
     <div class="card">
@@ -299,7 +310,7 @@
   </section>
 
   <section id="validation">
-    <div class="section-head"><span class="idx">06</span><h2>Validation</h2></div>
+    <div class="section-head"><span class="idx">07</span><h2>Validation</h2></div>
     <p class="sub">Both building blocks are checked against published series on every update.</p>
     <div class="grid-3">
       {% if acm_valid %}<div class="card stat"><div class="big num">{{ acm_valid.corr_10y }}</div><div class="cap">Correlation with the NY Fed's published 10y term premium over {{ acm_valid.months_compared }} months</div></div>
@@ -310,7 +321,7 @@
   </section>
 
   <section id="glossary">
-    <div class="section-head"><span class="idx">07</span><h2>Glossary</h2></div>
+    <div class="section-head"><span class="idx">08</span><h2>Glossary</h2></div>
     <div class="card" style="margin-top:16px">
       <dl class="gloss">
         <dt>Expected short rates</dt><dd>The average overnight rate the market expects over a bond's life. Moves with the Fed's expected policy path.</dd>
@@ -321,6 +332,8 @@
         <dt>Information shock</dt><dd>A surprise where rates and stocks move together: the Fed revealed news about the economy.</dd>
         <dt>Target and path</dt><dd>Target is the surprise in today's rate decision. Path is the surprise about future rates (guidance, dots) that leaves today's decision unchanged.</dd>
         <dt>Local projection</dt><dd>For each horizon, a regression of the change in a series since the day before the meeting on the shocks. The slopes trace out the response over time.</dd>
+        <dt>5y5y forward</dt><dd>The 5-year interest rate that starts 5 years from today, implied by today's 5y and 10y yields. Shows what markets expect, and demand, for the far future.</dd>
+        <dt>Real yield and breakeven</dt><dd>TIPS pay a yield on top of inflation, so their yield is a real rate. The nominal yield minus the real yield is the breakeven: the inflation rate at which the two bonds pay the same, combining expected inflation and an inflation risk premium.</dd>
         <dt>bp</dt><dd>Basis point, one hundredth of a percentage point.</dd>
       </dl>
     </div>

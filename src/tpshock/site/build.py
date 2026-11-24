@@ -244,6 +244,37 @@ def fig_irf(irf, shocks):
     return fig
 
 
+FWD_ORDER = ["fwd_nominal", "fwd_expected", "fwd_tp", "fwd_real", "fwd_breakeven"]
+
+
+def fig_forwards(path):
+    """Response of the 5y5y forward and its pieces, on the day and after 20 trading days."""
+    if not path.exists():
+        return None
+    irf = pd.read_csv(path)
+    names = config.FORWARD_OUTCOMES
+    present = [o for o in FWD_ORDER if o in set(irf.outcome)]
+    panels = [("target", "Target: surprise in today's rate"), ("path", "Path: guidance surprise"),
+              ("MP_median", "Monetary policy shock"), ("CBI_median", "Information shock")]
+    fig = make_subplots(rows=2, cols=2, subplot_titles=[t for _, t in panels], vertical_spacing=0.2,
+                        horizontal_spacing=0.08, shared_yaxes=False)
+    for k, (shock, _) in enumerate(panels):
+        r, c = k // 2 + 1, k % 2 + 1
+        for h, colour, label in [(0, NAVY, "On the day"), (20, SKY, "After 20 trading days")]:
+            d = irf[(irf.shock == shock) & (irf.h == h)].set_index("outcome").reindex(present)
+            fig.add_bar(x=[names[o] for o in present], y=d.coef, name=label, legendgroup=label, showlegend=(k == 0),
+                        marker=dict(color=colour, line=dict(width=0)),
+                        error_y=dict(type="data", array=1.645 * d.se, color="#9aa6b5", thickness=1, width=3),
+                        hovertemplate="%{y:+.1f}bp<extra>" + label + "</extra>", row=r, col=c)
+        fig.add_hline(y=0, line=dict(color=MUTED, width=1), row=r, col=c)
+    fig.update_annotations(font=dict(size=12, color=CHARCOAL, family=FONT))
+    fig = _style(fig, 640, barmode="group", bargap=0.3, hovermode="closest")
+    fig.update_xaxes(tickfont=dict(size=10), tickangle=0)
+    fig.update_yaxes(ticksuffix="bp")
+    fig.update_layout(legend=dict(y=1.08))
+    return _html(fig)
+
+
 def fig_validation(path):
     if not path.exists():
         return None
@@ -328,7 +359,7 @@ def build(out_dir: Path = config.SITE_OUT):
         fig_shocks=_html(fig_shocks(shocks), "fig-shocks"), fig_split=_html(fig_fomc_split(fomc_days)),
         fig_irf_jk=_html(fig_irf(irf, ("MP_median", "CBI_median"))),
         fig_irf_gss=_html(fig_irf(irf, ("target", "path"))),
-        fig_valid=fig_validation(P / "acm_vs_official.csv"),
+        fig_valid=fig_validation(P / "acm_vs_official.csv"), fig_fwd=fig_forwards(P / "irf_forwards.csv"),
         regime_rows=regime_rows, robust=robust, acm_valid=read_json("acm_validation.json"),
         shock_valid=read_json("shocks_validation.json"),
         labels=list(LABELS.items()), units=UNITS, scen_json=json.dumps(scen),

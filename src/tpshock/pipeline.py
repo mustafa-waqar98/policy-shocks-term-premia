@@ -10,6 +10,7 @@ from tpshock import config
 from tpshock.data import acm_official, fomc, fred, gsw
 from tpshock.models.acm import ACM
 from tpshock.shocks.identify import build_shocks
+from tpshock.transmission.forwards import forward_panel
 from tpshock.transmission.lp import fomc_day_table, local_projections, ols
 from tpshock.transmission.robustness import robustness_table
 
@@ -106,8 +107,8 @@ def transmission():
     daily = pd.read_csv(P / "acm_daily.csv", index_col=0, parse_dates=True)
     shocks = pd.read_csv(P / "shocks.csv", index_col=0, parse_dates=True)
 
-    extra = fred.load_all()
-    extra = extra[[c for c in config.FRED_OUTCOMES if c in extra]]
+    all_fred = fred.load_all()
+    extra = all_fred[[c for c in config.FRED_OUTCOMES if c in all_fred]]
     if not extra.empty:
         if "DTWEXBGS" in extra:
             extra["DTWEXBGS"] = np.log(extra["DTWEXBGS"])  # the x100 in the projections then gives % changes
@@ -139,6 +140,16 @@ def transmission():
         local_projections(daily[outcomes], shocks, ["target", "path"], config.LP_HORIZONS),
     ])
     irf.round(4).to_csv(P / "irf.csv", index=False)
+
+    # Far-forward split: expected vs term premium, real vs inflation
+    try:
+        fwd = forward_panel(daily, all_fred)
+        fwd_irf = pd.concat([local_projections(fwd, shocks, s, config.LP_HORIZONS)
+                             for s in (["MP_median", "CBI_median"], ["target", "path"])])
+        fwd_irf.round(4).to_csv(P / "irf_forwards.csv", index=False)
+        log.info("forward split done: %s", ", ".join(fwd.columns))
+    except NotImplementedError as exc:
+        log.warning("skipping forward split: %s", exc)
     robustness_table(daily, shocks).round(4).to_csv(P / "robustness.csv", index=False)
     log.info("transmission done: %s meetings", len(table))
 
