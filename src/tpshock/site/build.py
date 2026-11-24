@@ -13,103 +13,158 @@ from tpshock import config
 
 P = config.PROCESSED
 TEMPLATES = Path(__file__).parent / "templates"
-BLUE, ORANGE, GREY = "#1f4e79", "#c55a11", "#7f7f7f"
+
+# Colour roles (validated categorical slots 1 and 2, plus neutral ink)
+INK, INK2, MUTED, GRID = "#0b0b0b", "#52514e", "#8a8984", "#ebeae6"
+BLUE, ORANGE = "#2a78d6", "#eb6834"
+BAND_BLUE, BAND_ORANGE = "rgba(42,120,214,0.14)", "rgba(235,104,52,0.14)"
+FONT = "Figtree, Helvetica, Arial, sans-serif"
+
 LABELS = {"y24": "2y yield", "y120": "10y yield", "rn120": "10y expected rates",
-          "tp120": "10y term premium", "T10YIE": "10y breakeven", "DFII10": "10y real yield",
-          "BAA10Y": "Baa spread", "DTWEXBGS": "Broad dollar (%)"}
+          "tp120": "10y term premium", "DFII10": "10y real yield", "T10YIE": "10y breakeven",
+          "BAA10Y": "Baa credit spread", "DTWEXBGS": "Broad dollar"}
+UNITS = {"DTWEXBGS": "%"}
+SHOCK_NAMES = {"MP_median": "Monetary policy", "CBI_median": "Information",
+               "target": "Target (today's rate)", "path": "Path (guidance)"}
+PLOT_CONFIG = {"displaylogo": False, "responsive": True,
+               "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"]}
 
 
-def _layout(fig, height=380, **kw):
+def _style(fig, height=360, **kw):
     kw.setdefault("hovermode", "x unified")
-    fig.update_layout(template="simple_white", height=height, margin=dict(l=50, r=20, t=40, b=40),
-                      font=dict(family="Helvetica, Arial, sans-serif", size=12),
-                      legend=dict(orientation="h", y=1.08, x=0), **kw)
+    fig.update_layout(
+        template="none", height=height, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=52, r=16, t=36, b=36), font=dict(family=FONT, size=12, color=INK2),
+        legend=dict(orientation="h", y=1.02, yanchor="bottom", x=0, font=dict(size=12, color=INK2)),
+        hoverlabel=dict(bgcolor="white", bordercolor=GRID, font=dict(family=FONT, size=12, color=INK)),
+        **kw)
+    fig.update_xaxes(showgrid=False, linecolor=GRID, ticks="outside", tickcolor=GRID, zeroline=False)
+    fig.update_yaxes(gridcolor=GRID, zeroline=False, linecolor="rgba(0,0,0,0)", ticks="")
     return fig
 
 
-def _html(fig):
-    return fig.to_html(full_html=False, include_plotlyjs=False, config={"displaylogo": False})
+def _html(fig, div_id=None):
+    return fig.to_html(full_html=False, include_plotlyjs=False, config=PLOT_CONFIG, div_id=div_id)
 
 
-def snapshot(daily: pd.DataFrame, fomc_days: pd.DataFrame) -> list[dict]:
-    last = daily.index[-1]
-    last_fomc = fomc_days.index[-1].normalize()
-    pos_fomc = daily.index.searchsorted(last_fomc)
+# ---- numbers for the header tiles and tables ----------------------------------
+
+def _chg(s, k):
+    return (s.iloc[-1] - s.iloc[-1 - k]) * 100
+
+
+def tiles(daily, fomc_days):
+    out = []
+    for key, label in [("y120", "10y yield"), ("rn120", "Expected short rates"), ("tp120", "Term premium")]:
+        s = daily[key]
+        out.append({"label": label, "value": f"{s.iloc[-1]:.2f}%", "d1": _chg(s, 1), "d21": _chg(s, 21)})
+    return out
+
+
+def curve_table(daily, fomc_days):
+    pos = daily.index.searchsorted(fomc_days.index[-1].normalize())
     rows = []
-    for m, name in [(24, "2y"), (60, "5y"), (120, "10y")]:
-        for part, label in [("y", "Yield"), ("rn", "Expected rates"), ("tp", "Term premium")]:
+    for m, tenor in [(24, "2y"), (60, "5y"), (120, "10y")]:
+        row = {"tenor": tenor}
+        for part in ("y", "rn", "tp"):
             s = daily[f"{part}{m}"]
+            row[part] = s.iloc[-1]
+            row[part + "_d21"] = _chg(s, 21)
+            row[part + "_fomc"] = (s.iloc[-1] - s.iloc[max(pos - 1, 0)]) * 100
+        rows.append(row)
+    return rows
 
-            def chg(k, s=s):
-                return (s.iloc[-1] - s.iloc[-1 - k]) * 100
 
-            rows.append({"tenor": name, "part": label, "level": s.iloc[-1],
-                         "d1": chg(1), "d5": chg(5), "d21": chg(21),
-                         "since_fomc": (s.iloc[-1] - s.iloc[max(pos_fomc - 1, 0)]) * 100})
-    return rows, last
+def last_meeting(fomc_days):
+    r = fomc_days.iloc[-1]
+    mp, info = r["MP_median"], r["CBI_median"]
+    kind = "Monetary policy" if abs(mp) >= abs(info) else "Information"
+    direction = "hawkish" if r["pc1"] > 0 else "dovish"
+    return {"date": fomc_days.index[-1].strftime("%d %b %Y"), "pc1": r["pc1"] * 100, "mp": mp * 100,
+            "info": info * 100, "kind": kind, "direction": direction, "target": r["target"] * 100,
+            "path": r["path"] * 100, "d_yield": r["d_yield"], "d_exp": r["d_expectations"],
+            "d_tp": r["d_term_premium"]}
 
+
+# ---- charts ------------------------------------------------------------------------
 
 def fig_history(daily):
     fig = go.Figure()
-    fig.add_scatter(x=daily.index, y=daily.y120, name="10y yield", line=dict(color="black", width=1.2))
-    fig.add_scatter(x=daily.index, y=daily.rn120, name="Expected short rates", line=dict(color=BLUE, width=1.2))
-    fig.add_scatter(x=daily.index, y=daily.tp120, name="Term premium", line=dict(color=ORANGE, width=1.2))
-    fig.update_yaxes(title="percent")
-    fig.update_xaxes(rangeselector=dict(x=1, xanchor="right", y=1.08, buttons=[
-        dict(count=1, label="1y", step="year", stepmode="backward"),
-        dict(count=5, label="5y", step="year", stepmode="backward"),
-        dict(count=20, label="20y", step="year", stepmode="backward"),
-        dict(step="all", label="All")]))
-    return _layout(fig, 420)
+    for col, name, colour in [("y120", "10y yield", INK), ("rn120", "Expected short rates", BLUE),
+                              ("tp120", "Term premium", ORANGE)]:
+        fig.add_scatter(x=daily.index, y=daily[col], name=name, line=dict(color=colour, width=1.6),
+                        hovertemplate="%{y:.2f}%")
+    fig.add_hline(y=0, line=dict(color=MUTED, width=1))
+    start = daily.index[-1] - pd.DateOffset(years=20)
+    vis = daily.loc[start:, ["y120", "rn120", "tp120"]]
+    pad = 0.08 * (vis.max().max() - vis.min().min())
+    fig.update_yaxes(ticksuffix="%", range=[vis.min().min() - pad, vis.max().max() + pad])
+    fig.update_xaxes(range=[start, daily.index[-1]],
+                     rangeselector=dict(x=1, xanchor="right", y=1.02, yanchor="bottom", bgcolor="#f2f1ed",
+                                        activecolor="#dcdad3", font=dict(size=11, color=INK2), buttons=[
+                                            dict(count=1, label="1Y", step="year", stepmode="backward"),
+                                            dict(count=5, label="5Y", step="year", stepmode="backward"),
+                                            dict(count=20, label="20Y", step="year", stepmode="backward"),
+                                            dict(step="all", label="Since 1961")]))
+    return _style(fig, 400)
 
 
 def fig_shocks(shocks):
     s = shocks.loc["1994":]
     x = s.index.normalize()
-    width = 1000 * 3600 * 24 * 30  # bars a month wide so they are visible on a date axis
+    width = 1000 * 3600 * 24 * 40
     fig = go.Figure()
-    fig.add_bar(x=x, y=s.MP_median * 100, name="Monetary policy shock", marker_color=BLUE,
-                width=width, marker_line_width=0)
-    fig.add_bar(x=x, y=s.CBI_median * 100, name="Information shock", marker_color=ORANGE,
-                width=width, marker_line_width=0)
-    fig.update_yaxes(title="bp")
-    return _layout(fig, 340, barmode="relative")
+    for col, name, colour in [("MP_median", "Monetary policy shock", BLUE),
+                              ("CBI_median", "Information shock", ORANGE)]:
+        fig.add_bar(x=x, y=s[col] * 100, name=name, marker=dict(color=colour, line=dict(width=0)),
+                    width=width, hovertemplate="%{y:+.1f}bp")
+    fig.update_yaxes(ticksuffix="bp")
+    return _style(fig, 300, barmode="relative", hovermode="closest")
 
 
-def fig_fomc_split(fomc_days, n=40):
+def fig_fomc_split(fomc_days, n=24):
     t = fomc_days.dropna(subset=["d_yield"]).tail(n)
-    x = t.index.strftime("%Y-%m-%d")
+    x = t.index.strftime("%b %y")
     fig = go.Figure()
-    fig.add_bar(x=x, y=t.d_expectations, name="Expected rates", marker_color=BLUE)
-    fig.add_bar(x=x, y=t.d_term_premium, name="Term premium", marker_color=ORANGE)
-    fig.add_scatter(x=x, y=t.d_yield, name="10y yield change", mode="markers",
-                    marker=dict(color="black", size=6))
-    fig.update_yaxes(title="bp, close to close")
-    fig.update_xaxes(type="category", tickangle=-60, nticks=12)
-    return _layout(fig, 380, barmode="relative")
+    fig.add_bar(x=x, y=t.d_expectations, name="Expected rates", marker=dict(color=BLUE, line=dict(width=0)),
+                hovertemplate="%{y:+.1f}bp")
+    fig.add_bar(x=x, y=t.d_term_premium, name="Term premium", marker=dict(color=ORANGE, line=dict(width=0)),
+                hovertemplate="%{y:+.1f}bp")
+    fig.add_scatter(x=x, y=t.d_yield, name="10y change", mode="markers",
+                    marker=dict(color=INK, size=8, line=dict(color="white", width=2)),
+                    hovertemplate="%{y:+.1f}bp")
+    fig.update_yaxes(ticksuffix="bp")
+    fig.update_xaxes(type="category", tickangle=0, nticks=8)
+    return _style(fig, 320, barmode="relative", bargap=0.35)
 
 
-def fig_irf(irf, shocks=("MP_median", "CBI_median"), titles=("Monetary policy shock", "Information shock")):
+def fig_irf(irf, shocks):
     outcomes = [o for o in LABELS if o in set(irf.outcome)]
-    fig = make_subplots(rows=len(shocks), cols=len(outcomes), shared_xaxes=True,
-                        subplot_titles=[f"{LABELS[o]}" for o in outcomes] * len(shocks),
-                        vertical_spacing=0.14, horizontal_spacing=0.035)
-    for i, (s, colour) in enumerate(zip(shocks, [BLUE, ORANGE], strict=False), start=1):
-        for j, o in enumerate(outcomes, start=1):
+    ncols = 4
+    nrows = -(-len(outcomes) // ncols)
+    fig = make_subplots(rows=nrows, cols=ncols, subplot_titles=[LABELS[o] for o in outcomes],
+                        vertical_spacing=0.16, horizontal_spacing=0.06)
+    for (s, colour, band) in zip(shocks, [BLUE, ORANGE], [BAND_BLUE, BAND_ORANGE], strict=True):
+        for k, o in enumerate(outcomes):
+            r, c = k // ncols + 1, k % ncols + 1
             d = irf[(irf.shock == s) & (irf.outcome == o)].sort_values("h")
             lo, hi = d.coef - 1.645 * d.se, d.coef + 1.645 * d.se
-            fig.add_scatter(x=list(d.h) + list(d.h[::-1]), y=list(hi) + list(lo[::-1]), fill="toself", mode="lines",
-                            fillcolor="rgba(127,127,127,0.18)", line=dict(width=0), showlegend=False,
-                            hoverinfo="skip", row=i, col=j)
-            fig.add_scatter(x=d.h, y=d.coef, mode="lines+markers", marker=dict(size=4, color=colour),
-                            line=dict(color=colour, width=1.6), showlegend=False,
-                            name=f"{titles[i-1]}: {LABELS[o]}", row=i, col=j)
-            fig.add_hline(y=0, line=dict(color=GREY, width=0.6), row=i, col=j)
-    for i, t in enumerate(titles, start=1):
-        fig.update_yaxes(title_text=t + " (bp)" if i else "", row=i, col=1)
-    fig.update_xaxes(title_text="trading days after meeting", row=len(shocks))
-    fig.update_annotations(font_size=11)
-    return _layout(fig, 330 * len(shocks), hovermode="closest")
+            fig.add_scatter(x=list(d.h) + list(d.h[::-1]), y=list(hi) + list(lo[::-1]), fill="toself",
+                            mode="lines", fillcolor=band, line=dict(width=0), showlegend=False,
+                            hoverinfo="skip", row=r, col=c)
+            unit = UNITS.get(o, "bp")
+            fig.add_scatter(x=d.h, y=d.coef, mode="lines+markers", name=SHOCK_NAMES[s], legendgroup=s,
+                            showlegend=(k == 0), line=dict(color=colour, width=2),
+                            marker=dict(size=5, color=colour),
+                            hovertemplate=f"{SHOCK_NAMES[s]}: %{{y:+.2f}}{unit}<extra>day %{{x}}</extra>",
+                            row=r, col=c)
+    for k in range(len(outcomes)):
+        fig.add_hline(y=0, line=dict(color=MUTED, width=1), row=k // ncols + 1, col=k % ncols + 1)
+    fig.update_annotations(font=dict(size=12, color=INK, family=FONT))
+    fig = _style(fig, 300 * nrows, hovermode="closest")
+    fig.update_xaxes(tickvals=[0, 20, 40, 60])
+    fig.update_layout(legend=dict(y=1.06))
+    return fig
 
 
 def fig_validation(path):
@@ -118,11 +173,15 @@ def fig_validation(path):
     j = pd.read_csv(path, index_col=0)
     j.index = pd.PeriodIndex(j.index, freq="M").to_timestamp()
     fig = go.Figure()
-    fig.add_scatter(x=j.index, y=j.ACMTP10, name="NY Fed published", line=dict(color=GREY, width=2))
-    fig.add_scatter(x=j.index, y=j.tp120, name="This project", line=dict(color=ORANGE, width=1.2))
-    fig.update_yaxes(title="10y term premium, percent")
-    return _html(_layout(fig, 340))
+    fig.add_scatter(x=j.index, y=j.ACMTP10, name="NY Fed published", line=dict(color=MUTED, width=3),
+                    hovertemplate="%{y:.2f}%")
+    fig.add_scatter(x=j.index, y=j.tp120, name="This project", line=dict(color=ORANGE, width=1.4),
+                    hovertemplate="%{y:.2f}%")
+    fig.update_yaxes(ticksuffix="%")
+    return _html(_style(fig, 320))
 
+
+# ---- page --------------------------------------------------------------------------
 
 def build(out_dir: Path = config.SITE_OUT):
     daily = pd.read_csv(P / "acm_daily.csv", index_col=0, parse_dates=True)
@@ -135,33 +194,35 @@ def build(out_dir: Path = config.SITE_OUT):
         f = P / name
         return json.loads(f.read_text()) if f.exists() else None
 
-    snap, last_date = snapshot(daily, fomc_days)
-    last = fomc_days.iloc[-1]
-    recent = fomc_days.tail(12).iloc[::-1]
+    ev = events[events.outcome.isin(["d_yield", "d_expectations", "d_term_premium"])]
+    regime_rows = []
+    for reg in ["all", "1990-2007", "2008-present"]:
+        for s in SHOCK_NAMES:
+            sub = ev[(ev.regime == reg) & (ev.shock == s)].set_index("outcome")
+            if sub.empty:
+                continue
+            regime_rows.append({"regime": "Full sample" if reg == "all" else reg, "shock": SHOCK_NAMES[s],
+                                **{o: (sub.loc[o, "bp_per_10bp"], sub.loc[o, "se"])
+                                   for o in ["d_yield", "d_expectations", "d_term_premium"]}})
 
-    names = {"MP_median": "1 Monetary policy", "CBI_median": "2 Information", "target": "3 Target", "path": "4 Path"}
-    ev = events[events.shock.isin(names)].assign(shock=lambda d: d.shock.map(names))
-    ev_table = ev.pivot_table(index=["regime", "shock"], columns="outcome", values=["bp_per_10bp", "se"])
-    ev_table = ev_table.rename(index=lambda v: v[2:] if v[:1].isdigit() else v, level=1)
-    ev_table = ev_table.reindex(["all", "1990-2007", "2008-present"], level=0)
+    scen = {s: {o: irf[(irf.shock == s) & (irf.outcome == o)].sort_values("h")[["h", "coef"]].to_dict("list")
+                for o in irf.outcome.unique()} for s in irf.shock.unique()}
 
-    # coefficients for the in-browser scenario tool
-    scen = {s: {o: irf[(irf.shock == s) & (irf.outcome == o)].sort_values("h")[["h", "coef", "se"]]
-                .to_dict("list") for o in irf.outcome.unique()} for s in irf.shock.unique()}
-
+    recent = fomc_days.tail(10).iloc[::-1]
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=True)
     html = env.get_template("index.html").render(
-        updated=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        last_date=last_date.strftime("%Y-%m-%d"),
-        snap=snap, last=last, last_meeting=fomc_days.index[-1].strftime("%Y-%m-%d"), recent=recent,
-        fig_history=_html(fig_history(daily)), fig_shocks=_html(fig_shocks(shocks)),
+        updated=datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC"),
+        last_date=daily.index[-1].strftime("%d %b %Y"),
+        tiles=tiles(daily, fomc_days), curve=curve_table(daily, fomc_days), last=last_meeting(fomc_days),
+        recent=recent, n_meetings=len(fomc_days),
+        fig_history=_html(fig_history(daily), "fig-history"), fig_shocks=_html(fig_shocks(shocks)),
         fig_split=_html(fig_fomc_split(fomc_days)),
-        fig_irf=_html(fig_irf(irf)),
-        fig_irf_gss=_html(fig_irf(irf, ("target", "path"), ("Target factor", "Path factor"))),
+        fig_irf_jk=_html(fig_irf(irf, ("MP_median", "CBI_median"))),
+        fig_irf_gss=_html(fig_irf(irf, ("target", "path"))),
         fig_valid=fig_validation(P / "acm_vs_official.csv"),
-        ev_table=ev_table, acm_meta=read_json("acm_meta.json"),
+        regime_rows=regime_rows, acm_meta=read_json("acm_meta.json"),
         acm_valid=read_json("acm_validation.json"), shock_valid=read_json("shocks_validation.json"),
-        labels=LABELS, scen_json=json.dumps(scen), repo_url=config.REPO_URL,
+        labels=list(LABELS.items()), units=UNITS, scen_json=json.dumps(scen), repo_url=config.REPO_URL,
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "index.html").write_text(html)
