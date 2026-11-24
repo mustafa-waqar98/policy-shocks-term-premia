@@ -34,7 +34,7 @@ ACM_N_FACTORS = 5
 ACM_MAX_MATURITY = 120  # months
 ACM_RETURN_MATURITIES = list(range(6, 121, 6))  # bonds used in the return regressions
 ACM_START = "1961-06-30"  # NY Fed's published series starts here
-REPORT_MATURITIES = [24, 60, 120]  # 2y, 5y, 10y
+REPORT_MATURITIES = [12, 24, 36, 60, 84, 120]  # 1y to 10y, in months
 
 # Shock settings (Jarocinski and Karadi 2020)
 JK_RATE_VARS = ["MP1", "FF4", "ED2", "ED3", "ED4"]

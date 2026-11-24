@@ -1,98 +1,195 @@
 # Methodology
 
+1. [Zero-coupon curve](#1-zero-coupon-curve)
+2. [ACM term premium](#2-acm-term-premium)
+3. [FOMC shocks](#3-fomc-shocks)
+4. [Transmission](#4-transmission)
+
+---
+
 ## 1. Zero-coupon curve
 
-The Fed's GSW dataset gives daily Svensson parameters. The zero yield at maturity $n$ years is
+The Fed's GSW dataset gives six Svensson parameters per day. The continuously compounded zero yield at
+maturity $`n`$ years is
 
-$$
-y(n) = \beta_0 + \beta_1 \frac{1-e^{-n/\tau_1}}{n/\tau_1}
-+ \beta_2\left(\frac{1-e^{-n/\tau_1}}{n/\tau_1} - e^{-n/\tau_1}\right)
-+ \beta_3\left(\frac{1-e^{-n/\tau_2}}{n/\tau_2} - e^{-n/\tau_2}\right)
-$$
+```math
+y(n) = \beta_0
++ \beta_1 \, \frac{1 - e^{-n/\tau_1}}{n/\tau_1}
++ \beta_2 \left( \frac{1 - e^{-n/\tau_1}}{n/\tau_1} - e^{-n/\tau_1} \right)
++ \beta_3 \left( \frac{1 - e^{-n/\tau_2}}{n/\tau_2} - e^{-n/\tau_2} \right)
+```
 
-We evaluate it at monthly maturities 1 to 120. Before 1980 the curve is Nelson-Siegel ($\beta_3 = 0$).
-Code: `src/tpshock/data/gsw.py`.
+We evaluate it at monthly maturities $`n = 1, 2, \dots, 120`$ months. Before 1980 the curve is
+Nelson-Siegel, i.e. $`\beta_3 = 0`$.
+
+Code: [`src/tpshock/data/gsw.py`](../src/tpshock/data/gsw.py)
+
+---
 
 ## 2. ACM term premium
 
-Let $p_t^{(n)} = -\tfrac{n}{12} y_t^{(n)}$ be the log price of an $n$-month zero and $r_t$ the one-month rate.
+Adrian, Crump and Moench (2013). Notation: $`p_t^{(n)}`$ is the log price of an $`n`$-month zero-coupon
+bond and $`r_t`$ the one-month rate,
 
-**Factors.** $X_t$ = first $K=5$ principal components of yields, with dynamics
-$X_{t+1} = \mu + \Phi X_t + v_{t+1}$, $v \sim N(0, \Sigma)$, estimated by OLS.
+```math
+p_t^{(n)} = -\frac{n}{12} \, y_t^{(n)}, \qquad r_t = -p_t^{(1)}
+```
 
-**Excess returns.** For bonds $n \in \{6, 12, \dots, 120\}$,
-$rx_{t+1}^{(n-1)} = p_{t+1}^{(n-1)} - p_t^{(n)} - r_t$. Stacking across bonds,
+### Step 1: factors
 
-$$
-rx = a\iota' + \beta' V + c X_- + E
-$$
+$`X_t`$ is the vector of the first $`K = 5`$ principal components of the yield curve. Its dynamics are a
+VAR(1) estimated by OLS:
 
-estimated by OLS. $\beta$ ($K \times N$) are risk exposures, $\sigma^2 = \mathrm{tr}(EE')/NT$.
+```math
+X_{t+1} = \mu + \Phi X_t + v_{t+1}, \qquad v_{t+1} \sim N(0, \Sigma)
+```
 
-**Prices of risk.** With $B^*$ the $N \times K^2$ matrix with rows $\mathrm{vec}(\beta_i\beta_i')'$,
+### Step 2: excess returns
 
-$$
-\lambda_0 = (\beta\beta')^{-1}\beta\left(a + \tfrac12(B^*\mathrm{vec}(\Sigma) + \sigma^2\iota)\right),
-\qquad
-\lambda_1 = (\beta\beta')^{-1}\beta c
-$$
+For bonds with maturity $`n \in \{6, 12, \dots, 120\}`$, the one-month log excess return is
 
-**Pricing.** With $r_t = \delta_0 + \delta_1' X_t$ (OLS), log prices $p_t^{(n)} = A_n + B_n' X_t$ follow
+```math
+rx_{t+1}^{(n-1)} = p_{t+1}^{(n-1)} - p_t^{(n)} - r_t
+```
 
-$$
-A_n = A_{n-1} + B_{n-1}'(\mu - \lambda_0) + \tfrac12(B_{n-1}'\Sigma B_{n-1} + \sigma^2) - \delta_0,
-\qquad
-B_n' = B_{n-1}'(\Phi - \lambda_1) - \delta_1'
-$$
+Stacking the $`N`$ bonds and $`T`$ months, estimate by OLS
 
-Setting $\lambda_0 = \lambda_1 = 0$ gives risk-neutral yields: the average expected short rate.
-Term premium = fitted yield minus risk-neutral yield.
+```math
+rx = a \iota^\top + \beta^\top V + c X_{-} + E
+```
 
-**Daily series.** Parameters are estimated on month-end data; daily factors are daily yields projected
-on the same principal component weights. This is how the NY Fed produces its daily series.
+where $`V`$ holds the VAR shocks, $`X_{-}`$ the lagged factors, $`\beta`$ ($`K \times N`$) the risk exposures, and
 
-**Known caveat.** The level of the term premium depends on the estimated persistence $\Phi$, which is
-biased downward in finite samples (Bauer, Rudebusch and Wu 2012). Changes in the term premium are
-much better identified than its level. `tests/test_acm.py` shows this in simulation. This is one reason
-the project focuses on changes around FOMC announcements.
+```math
+\sigma^2 = \frac{\operatorname{tr}(E E^\top)}{N T}
+```
 
-Code: `src/tpshock/models/acm.py`.
+### Step 3: prices of risk
+
+Let $`B^{\ast}`$ be the $`N \times K^2`$ matrix whose $`i`$-th row is $`\operatorname{vec}(\beta_i \beta_i^\top)^\top`$. Then
+
+```math
+\lambda_0 = (\beta \beta^\top)^{-1} \beta \left( a + \tfrac{1}{2} \left( B^{\ast} \operatorname{vec}(\Sigma) + \sigma^2 \iota \right) \right)
+```
+
+```math
+\lambda_1 = (\beta \beta^\top)^{-1} \beta \, c
+```
+
+### Pricing
+
+With the short rate $`r_t = \delta_0 + \delta_1^\top X_t`$ (OLS), log bond prices are affine,
+$`p_t^{(n)} = A_n + B_n^\top X_t`$, with $`A_0 = 0`$, $`B_0 = 0`$ and
+
+```math
+A_n = A_{n-1} + B_{n-1}^\top (\mu - \lambda_0) + \tfrac{1}{2} \left( B_{n-1}^\top \Sigma B_{n-1} + \sigma^2 \right) - \delta_0
+```
+
+```math
+B_n^\top = B_{n-1}^\top (\Phi - \lambda_1) - \delta_1^\top
+```
+
+Fitted yields are $`y_t^{(n)} = -\tfrac{12}{n}(A_n + B_n^\top X_t)`$. Repeating the recursion with
+$`\lambda_0 = 0`$ and $`\lambda_1 = 0`$ gives the **risk-neutral yield**, the average expected short rate.
+The **term premium** is the difference:
+
+```math
+TP_t^{(n)} = y_t^{(n)} - y_t^{(n), \text{RN}}
+```
+
+### Daily series
+
+Parameters are estimated on month-end data. Daily factors come from projecting daily yields on the same
+principal component weights, which is how the NY Fed builds its daily series.
+
+### Known caveat
+
+The level of the term premium depends on the estimated persistence $`\Phi`$, which is biased downward in
+small samples (Bauer, Rudebusch and Wu 2012). Changes in the term premium are much better identified than
+its level; [`tests/test_acm.py`](../tests/test_acm.py) shows this in simulation. This is one reason the
+project focuses on changes around FOMC announcements.
+
+Code: [`src/tpshock/models/acm.py`](../src/tpshock/models/acm.py)
+
+---
 
 ## 3. FOMC shocks
 
-**Surprises.** For each announcement, the change in futures-implied rates from 10 minutes before to
-20 minutes after (Jarocinski and Karadi's data): current-month and 3-month-ahead fed funds futures
-(MP1, FF4) and 2nd to 4th quarterly eurodollar / SOFR futures (ED2 to ED4), plus the S&P 500.
+### Surprises
 
-**Policy factor.** First principal component of the standardised rate surprises (uncentred, missing
-values set to zero), rescaled to the standard deviation of ED4 so the units are percentage points.
+For each announcement, the change in futures-implied rates from 10 minutes before to 20 minutes after the
+statement (Jarocinski and Karadi's data): current-month and 3-month-ahead fed funds futures (MP1, FF4),
+the 2nd to 4th quarterly eurodollar or SOFR futures (ED2 to ED4), and the S&P 500.
 
-**Target and path.** Take the first two principal components $F$ of the standardised surprises and
-rotate them so that the second factor has no effect on MP1. The target factor is scaled so it moves
-MP1 one for one, the path factor so it moves ED4 one for one (GSS 2005).
+### Policy factor
 
-**Policy and information.** Let $m$ = policy factor, $s$ = stock surprise. A monetary policy shock
-moves $m$ and $s$ in opposite directions; an information shock moves them in the same direction.
-- *Poor man's*: the whole of $m$ is MP if $m s < 0$, otherwise CBI.
-- *Median rotation*: among all orthogonal rotations of $(m, s)$ that satisfy the sign restrictions,
-  take the median angle; both shocks can be non-zero at every meeting.
+The first principal component of the standardised rate surprises (uncentred, missing values set to zero),
+rescaled to the standard deviation of ED4 so it is in percentage points. Call it $`m_t`$.
 
-Code: `src/tpshock/shocks/identify.py`. Replicates the published JK series exactly.
+### Target and path
+
+Take the first two principal components $`F`$ of the standardised surprises and rotate them so that the
+second factor has no effect on MP1 (Gurkaynak, Sack and Swanson 2005):
+
+```math
+\text{target}_t = F_t \gamma, \qquad \text{path}_t = F_t \gamma^{\perp}, \qquad \gamma = \arg\min_g \lVert \text{MP1} - F g \rVert
+```
+
+The target factor is scaled to move MP1 one for one, the path factor to move ED4 one for one.
+
+### Policy and information
+
+With $`s_t`$ the stock market surprise, a monetary policy shock moves $`m_t`$ and $`s_t`$ in opposite
+directions, an information shock in the same direction (Jarocinski and Karadi 2020).
+
+| | effect on rates $`m_t`$ | effect on stocks $`s_t`$ |
+|---|---|---|
+| Monetary policy shock | $`+`$ | $`-`$ |
+| Information shock | $`+`$ | $`+`$ |
+
+- **Poor man's:** all of $`m_t`$ is policy if $`m_t s_t < 0`$, otherwise information.
+- **Median rotation:** among all orthogonal rotations of $`(m_t, s_t)`$ that satisfy the sign
+  restrictions, take the median angle, so both shocks can be non-zero at every meeting.
+
+Code: [`src/tpshock/shocks/identify.py`](../src/tpshock/shocks/identify.py). Replicates the published
+Jarocinski-Karadi series to 8 decimal places.
+
+---
 
 ## 4. Transmission
 
-**Event regressions.** For outcome $x$ (fitted 10y, its expectations part, its term premium),
-$\Delta x_d = \alpha + \gamma' \varepsilon_d + u_d$ on announcement days $d$, with $\Delta$ the close to
-close change. Run on the full sample and on 1990-2007 and 2008-present.
+### Event regressions
 
-**Local projections.** For each horizon $h$ in trading days,
+For an outcome $`x`$ (fitted 10y yield, its expected-rate part, its term premium) and shocks
+$`\varepsilon_d`$ on announcement days $`d`$:
 
-$$
-x_{d+h} - x_{d-1} = \alpha_h + \gamma_h' \varepsilon_d + u_{d,h}
-$$
+```math
+\Delta x_d = \alpha + \gamma^\top \varepsilon_d + u_d
+```
 
-across meetings. $\gamma_h$ traces the impulse response. Windows overlap for $h$ beyond the gap between
-meetings, so standard errors are Newey-West with $\lceil (h+1)/30 \rceil$ lags. Responses are reported per
-10bp shock.
+with $`\Delta`$ the close-to-close change. Estimated on the full sample, 1990-2007 and 2008-present.
 
-Code: `src/tpshock/transmission/lp.py`.
+### Local projections
+
+For each horizon $`h`$ in trading days (Jorda 2005):
+
+```math
+x_{d+h} - x_{d-1} = \alpha_h + \gamma_h^\top \varepsilon_d + u_{d,h}
+```
+
+The sequence $`\gamma_0, \gamma_1, \dots, \gamma_{60}`$ is the impulse response. Windows overlap once $`h`$
+exceeds the gap between meetings, so standard errors are Newey-West with $`\lceil (h+1)/30 \rceil`$ lags.
+Responses are reported per 10bp shock.
+
+Code: [`src/tpshock/transmission/lp.py`](../src/tpshock/transmission/lp.py)
+
+---
+
+## References
+
+- Adrian, T., Crump, R. and Moench, E. (2013). Pricing the term structure with linear regressions. *Journal of Financial Economics* 110(1).
+- Bauer, M., Rudebusch, G. and Wu, J. (2012). Correcting estimation bias in dynamic term structure models. *Journal of Business and Economic Statistics* 30(3).
+- Gurkaynak, R., Sack, B. and Swanson, E. (2005). Do actions speak louder than words? *International Journal of Central Banking* 1(1).
+- Gurkaynak, R., Sack, B. and Wright, J. (2007). The U.S. Treasury yield curve: 1961 to the present. *Journal of Monetary Economics* 54(8).
+- Jarocinski, M. and Karadi, P. (2020). Deconstructing monetary policy surprises: the role of information shocks. *AEJ: Macroeconomics* 12(2).
+- Jorda, O. (2005). Estimation and inference of impulse responses by local projections. *American Economic Review* 95(1).
