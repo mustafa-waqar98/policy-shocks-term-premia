@@ -36,28 +36,42 @@ def fit_term_premium():
     params = gsw.load()
     mats = list(range(1, config.ACM_MAX_MATURITY + 1))
     monthly = gsw.svensson(gsw.month_end(params).loc[config.ACM_START:], mats)
-    model = ACM(config.ACM_N_FACTORS, config.ACM_RETURN_MATURITIES, config.ACM_MAX_MATURITY)
+    short = None
     if config.SHORT_RATE == "tbill":
         # T-bill rate on (or just before) each month-end date of the curve
         bill = fred.tbill_cc().sort_index()
         short = bill.reindex(monthly.index, method="ffill")
         log.info("short rate: 3-month T-bill (mean %.2f%%)", short.mean())
-        model.fit(monthly, short_rate=short)
     else:
         log.info("short rate: 1-month yield from the fitted curve")
-        model.fit(monthly)
+
+    def fit(bias_correct):
+        m = ACM(config.ACM_N_FACTORS, config.ACM_RETURN_MATURITIES, config.ACM_MAX_MATURITY,
+                bias_correct=bias_correct)
+        return m.fit(monthly, short_rate=short) if short is not None else m.fit(monthly)
+
+    model = fit(bias_correct=False)
+    model_bc = fit(bias_correct=True)   # robustness: small-sample bias-corrected dynamics
 
     daily_yields = gsw.svensson(params.loc[config.ACM_START:], mats)
     daily = model.decompose(daily_yields, config.REPORT_MATURITIES)
+    bc = model_bc.decompose(daily_yields, [60, 120])[["rn60", "tp60", "rn120", "tp120"]].add_suffix("_bc")
+    daily = daily.join(bc)
     monthly_out = model.decompose(monthly, config.REPORT_MATURITIES)
+    monthly_bc = model_bc.decompose(monthly, [120])
 
     P.mkdir(parents=True, exist_ok=True)
     daily.round(4).to_csv(P / "acm_daily.csv")
-    monthly_out.round(4).to_csv(P / "acm_monthly.csv")
+    monthly_out.join(monthly_bc[["tp120"]].add_suffix("_bc")).round(4).to_csv(P / "acm_monthly.csv")
     fit_err = (monthly_out["y120"] - monthly[120]).abs().mean() * 100
+    persistence = lambda m: float(np.abs(np.linalg.eigvals(m.result.phi)).max())  # noqa: E731
     meta = {"sample": [str(monthly.index[0].date()), str(monthly.index[-1].date())],
             "n_months": len(monthly), "mean_abs_fit_error_10y_bp": round(float(fit_err), 2),
-            "pricing_error_sd_bp_per_month": round(float(np.sqrt(model.result.sigma2_e) * 1e4), 1)}
+            "pricing_error_sd_bp_per_month": round(float(np.sqrt(model.result.sigma2_e) * 1e4), 1),
+            "var_persistence_ols": round(persistence(model), 4),
+            "var_persistence_bias_corrected": round(persistence(model_bc), 4),
+            "tp10_sd_ols": round(float(monthly_out.tp120.std()), 3),
+            "tp10_sd_bias_corrected": round(float(monthly_bc.tp120.std()), 3)}
     (P / "acm_meta.json").write_text(json.dumps(meta, indent=2))
     log.info("ACM fitted on %s months, last date %s", len(monthly), daily.index[-1].date())
     return model
@@ -92,7 +106,7 @@ def identify_shocks():
         pub = fomc.load_published()
         a, b = shocks.copy(), pub.copy()
         a.index, b.index = a.index.floor("min"), b.index.floor("min")
-        j = a.join(b, rsuffix="_pub", how="inner")
+        j = a.join(b.add_suffix("_pub"), how="inner")
         diff = max(float((j[c] - j[c + "_pub"]).abs().max())
                    for c in ["pc1", "MP_pm", "CBI_pm", "MP_median", "CBI_median"])
         (P / "shocks_validation.json").write_text(json.dumps(

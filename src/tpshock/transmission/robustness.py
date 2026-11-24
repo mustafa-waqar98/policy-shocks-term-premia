@@ -16,6 +16,8 @@ KEY_RESULTS = [
     ("path", "tp120", 20, "Guidance surprise: 10y term premium after 20 days"),
     ("MP_median", "DFII10", 20, "Policy shock: 10y real yield after 20 days"),
     ("CBI_median", "y24", 60, "Information shock: 2y yield after 60 days"),
+    ("target", "tp120_bc", 0, "Rate surprise: 10y term premium, same day (bias-corrected model)"),
+    ("path", "tp120_bc", 20, "Guidance surprise: 10y term premium after 20 days (bias-corrected model)"),
 ]
 SHOCK_SETS = [["MP_median", "CBI_median"], ["target", "path"]]
 
@@ -31,8 +33,8 @@ def make_variants(shocks: pd.DataFrame) -> dict[str, pd.DataFrame]:
         variants["Scheduled meetings only"] = shocks[shocks["scheduled"].astype(bool)]
 
     # YOUR TURN: add a check that drops every meeting in 2020 (Covid emergency cuts).
-    variants["Excluding 2020"] = shocks[shocks.index.year != 2020]
     # Hint: shocks.index.year gives the year of each meeting.
+    variants["Excluding 2020"] = shocks[shocks.index.year != 2020]
 
     return variants
 

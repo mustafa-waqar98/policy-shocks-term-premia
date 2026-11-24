@@ -43,7 +43,8 @@ Per 10bp shock, FOMC announcements 1990 to 2026. Full tables, robustness checks 
    Hanson and Stein (2015).
 4. **Robust to the usual objections.** Dropping 2020 changes nothing (+7.2bp vs +7.4bp). The rate-surprise result
    holds in every subsample. Dropping unscheduled meetings weakens the guidance result slightly but keeps its
-   sign and size.
+   sign and size. Re-estimating the term premium with a small-sample bias-corrected VAR makes the rate-surprise
+   result stronger (-3.7bp) and leaves the guidance result at +6.3bp (+13.8bp since 2008).
 
 Caveats: the TIPS pieces start in 2003 (204 meetings) and use par yields; bands are wide beyond 20 trading days;
 model-based term premium levels are less reliable than their changes.
@@ -66,6 +67,7 @@ Both building blocks are checked against published series, and the checks run on
 | ACM term premium | NY Fed published ACM series | correlation 0.9996, average gap about 1bp after anchoring to the T-bill rate (18bp when using the curve's own 1-month point) |
 | FOMC shocks (pc1, MP, CBI, both decompositions) | Jarocinski and Karadi published shocks | identical to 8 decimal places on all meetings |
 | ACM estimator | simulated curve with a known term premium | recovers term premium dynamics (correlation > 0.95), see `tests/test_acm.py` |
+| Bias correction | simulated curve | raises VAR persistence, leaves fitted yields unchanged, see `tests/test_acm.py` |
 
 ## Repository layout
 

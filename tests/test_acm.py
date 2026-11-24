@@ -65,3 +65,16 @@ def test_daily_projection_uses_monthly_parameters():
     a = model.decompose(sub)
     b = model.decompose(yields).iloc[-10:]
     assert np.allclose(a.to_numpy(), b.to_numpy())
+
+
+def test_bias_correction_raises_persistence_and_keeps_fit():
+    yields, _ = simulate(T=300, seed=3)
+    plain = ACM(n_factors=3).fit(yields)
+    corrected = ACM(n_factors=3, bias_correct=True).fit(yields)
+    eig = lambda m: np.abs(np.linalg.eigvals(m.result.phi)).max()  # noqa: E731
+    assert eig(corrected) > eig(plain)          # OLS understates persistence
+    assert eig(corrected) < 1                   # but the corrected VAR stays stationary
+    a = plain.decompose(yields, [120])
+    b = corrected.decompose(yields, [120])
+    assert np.allclose(a.y120, b.y120)          # fitted yields unchanged
+    assert not np.allclose(a.tp120, b.tp120)    # only the split moves

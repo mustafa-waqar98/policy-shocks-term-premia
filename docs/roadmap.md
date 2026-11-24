@@ -1,25 +1,18 @@
 # Roadmap
 
-## Done (v0.1)
-- GSW curve at monthly maturities, ACM model with daily term premium
-- FOMC shocks rebuilt from raw surprises: policy factor, target/path, policy/information (both versions)
+## Done (v1.0)
+- GSW curve at monthly maturities, ACM model with daily term premium, anchored to the T-bill rate
+  (average gap to the NY Fed series about 1bp)
+- FOMC shocks rebuilt from raw surprises: policy factor, target/path, policy/information (both versions),
+  matching Jarocinski and Karadi to 8 decimal places
 - Event regressions by regime, local projections with Newey-West errors
-- Dashboard with scenario tool, daily refresh and deploy via GitHub Actions
-- Tests: simulation test for ACM, replication test for shocks, unit tests
+- 5y5y forwards split into expected rates vs term premium and real vs breakeven
+- Robustness: by period, scheduled meetings only, excluding 2020, bias-corrected VAR
+- Dashboard with meeting explorer, scenario tool and plain-English summaries; daily refresh via GitHub Actions
 
-## Next
-1. **Validation pass.** Compare to the NY Fed series, check sample start and short-rate choices
-   (GSW 1-month vs T-bill), document differences.
-2. **Robustness.** Bias-corrected VAR (Bauer, Rudebusch and Wu 2012) for the term premium level;
-   two-day windows; excluding March 2020; controlling for macro data releases on FOMC days.
-3. **Real vs nominal.** Split the term premium using TIPS (breakevens vs real yields), as in
-   Hanson and Stein (2015).
-4. **Regimes.** Rolling or state-dependent local projections (hiking vs cutting cycles, QE on vs off).
-
-## Later projects that plug into this one
-- **Global spillovers (#5).** Feed the shocks into a BVAR on EM sovereign spreads, FX and capital flows,
-  and estimate a global risk factor.
-- **Event volatility (#6).** Option-implied event variance around FOMC and CPI dates vs the realised
-  moves this project already measures.
-- **Treasury supply (#9).** Refunding announcement surprises and their effect on the term premium series
-  built here.
+## Next projects that build on this one
+- **Treasury supply.** Refunding announcement and auction surprises, and their effect on the term premium
+  series built here.
+- **Event volatility.** Option-implied event variance around FOMC and CPI dates vs the realised moves this
+  project measures.
+- **Global spillovers** (separate repo). These shocks fed into EM sovereign spreads, FX and capital flows.

@@ -52,8 +52,39 @@ class ACMResult:
     return_maturities: list
 
 
+def kilian_bias_correct(X, mu, phi, V, n_boot=500, seed=0):
+    """Small-sample bias correction for a VAR(1) slope (Kilian 1998).
+
+    OLS understates persistence in short samples. Simulate many fake histories from the
+    estimated VAR, re-estimate each, and measure how far OLS falls short on average. Then
+    add that shortfall back. If the corrected VAR is explosive, shrink the correction until
+    it is not. The intercept is reset so the long-run mean of the factors is unchanged.
+    """
+    rng = np.random.default_rng(seed)
+    T, k = X.shape
+    draws = V[rng.integers(0, len(V), size=(n_boot, T - 1))]      # resampled shocks
+    sims = np.empty((n_boot, T, k))
+    sims[:, 0] = X[0]
+    for t in range(T - 1):
+        sims[:, t + 1] = mu + sims[:, t] @ phi.T + draws[:, t]
+    phis = np.empty((n_boot, k, k))
+    for b in range(n_boot):
+        Z = np.column_stack([np.ones(T - 1), sims[b, :-1]])
+        phis[b] = np.linalg.lstsq(Z, sims[b, 1:], rcond=None)[0][1:].T
+    bias = phis.mean(axis=0) - phi
+    shrink = 1.0
+    phi_c = phi - bias
+    while np.abs(np.linalg.eigvals(phi_c)).max() >= 1 and shrink > 0:
+        shrink -= 0.01
+        phi_c = phi - shrink * bias
+    mu_c = (np.eye(k) - phi_c) @ X.mean(axis=0)
+    return mu_c, phi_c
+
+
 class ACM:
-    def __init__(self, n_factors: int = 5, return_maturities=None, max_maturity: int = 120):
+    def __init__(self, n_factors: int = 5, return_maturities=None, max_maturity: int = 120,
+                 bias_correct: bool = False):
+        self.bias_correct = bias_correct
         self.k = n_factors
         self.return_maturities = return_maturities or list(range(6, 121, 6))
         self.max_maturity = max_maturity
@@ -76,7 +107,7 @@ class ACM:
         if short_rate is None:
             rf = Y[:, 0] / 12.0  # 1-month yield read off the fitted curve
         else:
-            rf = short_rate.to_numpy() / 100.0 / 12.0 #actual T-bill rate
+            rf = short_rate.to_numpy() / 100.0 / 12.0  # actual T-bill rate
 
         # Step 1: principal components and VAR(1)
         mean = Y.mean(axis=0)
@@ -119,6 +150,13 @@ class ACM:
         delta0, delta1 = float(d[0]), d[1:]
 
         A, B = self._recursion(mu - lambda0, phi - lambda1, sigma, sigma2_e, delta0, delta1)
+        if self.bias_correct:
+            # Only the real-world (P) dynamics change. Pricing (mu - lambda0, phi - lambda1) is pinned
+            # by the cross-section of yields, so fitted yields stay the same and the correction moves
+            # the split between expected rates and term premium.
+            mu_p, phi_p = kilian_bias_correct(X, mu, phi, V)
+            lambda0, lambda1 = lambda0 + (mu_p - mu), lambda1 + (phi_p - phi)
+            mu, phi = mu_p, phi_p
         A_rn, B_rn = self._recursion(mu, phi, sigma, sigma2_e, delta0, delta1)
 
         self.result = ACMResult(mean, W, mu, phi, sigma, sigma2_e, lambda0, lambda1,

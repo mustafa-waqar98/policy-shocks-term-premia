@@ -58,6 +58,6 @@ def test_replicates_published_jk_shocks(tmp_path):
         pytest.skip("no network")
     ours = build_shocks(raw)
     ours.index, pub.index = ours.index.floor("min"), pub.index.floor("min")
-    j = ours.join(pub, rsuffix="_pub", how="inner")
+    j = ours.join(pub.add_suffix("_pub"), how="inner")
     for c in ["pc1", "MP_pm", "CBI_pm", "MP_median", "CBI_median"]:
         assert (j[c] - j[c + "_pub"]).abs().max() < 1e-6

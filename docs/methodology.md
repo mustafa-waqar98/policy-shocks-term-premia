@@ -112,12 +112,23 @@ is `SHORT_RATE` in `config.py`.
 Parameters are estimated on month-end data. Daily factors come from projecting daily yields on the same
 principal component weights, which is how the NY Fed builds its daily series.
 
-### Known caveat
+### Small-sample bias correction
 
-The level of the term premium depends on the estimated persistence $`\Phi`$, which is biased downward in
-small samples (Bauer, Rudebusch and Wu 2012). Changes in the term premium are much better identified than
-its level; [`tests/test_acm.py`](../tests/test_acm.py) shows this in simulation. This is one reason the
-project focuses on changes around FOMC announcements.
+The level of the term premium depends on the estimated persistence $`\Phi`$, which OLS understates in finite
+samples (Bauer, Rudebusch and Wu 2012). Understated persistence makes expected rates revert too fast, which
+pushes too much of each move into the term premium. As a robustness check the model is also estimated with a
+Kilian (1998) bootstrap correction: simulate 500 histories from the fitted VAR, re-estimate $`\Phi`$ on each,
+and add back the average shortfall,
+
+```math
+\Phi^{\text{bc}} = \hat\Phi - \left( \overline{\Phi^{*}} - \hat\Phi \right)
+```
+
+shrinking the correction if the result is explosive. Only the real-world dynamics change: the pricing
+parameters $`\mu - \lambda_0`$ and $`\Phi - \lambda_1`$ are pinned by the cross-section of yields, so fitted
+yields are identical and only the split moves. The largest eigenvalue rises from 0.991 to 0.999 and the
+volatility of the 10y term premium falls by about 15%. The main FOMC results hold under the corrected model
+(see the robustness table). [`tests/test_acm.py`](../tests/test_acm.py) checks both properties in simulation.
 
 Code: [`src/tpshock/models/acm.py`](../src/tpshock/models/acm.py)
 
@@ -198,6 +209,7 @@ Code: [`src/tpshock/transmission/lp.py`](../src/tpshock/transmission/lp.py)
 ## References
 
 - Adrian, T., Crump, R. and Moench, E. (2013). Pricing the term structure with linear regressions. *Journal of Financial Economics* 110(1).
+- Kilian, L. (1998). Small-sample confidence intervals for impulse response functions. *Review of Economics and Statistics* 80(2).
 - Bauer, M., Rudebusch, G. and Wu, J. (2012). Correcting estimation bias in dynamic term structure models. *Journal of Business and Economic Statistics* 30(3).
 - Gurkaynak, R., Sack, B. and Swanson, E. (2005). Do actions speak louder than words? *International Journal of Central Banking* 1(1).
 - Gurkaynak, R., Sack, B. and Wright, J. (2007). The U.S. Treasury yield curve: 1961 to the present. *Journal of Monetary Economics* 54(8).
