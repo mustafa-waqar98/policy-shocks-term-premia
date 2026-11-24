@@ -309,6 +309,15 @@ def build(out_dir: Path = config.SITE_OUT):
     scen = {s: {o: irf[(irf.shock == s) & (irf.outcome == o)].sort_values("h")[["h", "coef"]].to_dict("list")
                 for o in irf.outcome.unique()} for s in irf.shock.unique()}
 
+    robust = None
+    if (P / "robustness.csv").exists():
+        rb = pd.read_csv(P / "robustness.csv")
+        checks = list(dict.fromkeys(rb.check))
+        results = list(dict.fromkeys(rb.result))
+        cell = {(r.result, r.check): r for r in rb.itertuples()}
+        robust = {"checks": checks,
+                  "rows": [{"result": res, "cells": [cell.get((res, c)) for c in checks]} for res in results]}
+
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=True)
     html = env.get_template("index.html").render(
         updated=datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC"),
@@ -320,7 +329,7 @@ def build(out_dir: Path = config.SITE_OUT):
         fig_irf_jk=_html(fig_irf(irf, ("MP_median", "CBI_median"))),
         fig_irf_gss=_html(fig_irf(irf, ("target", "path"))),
         fig_valid=fig_validation(P / "acm_vs_official.csv"),
-        regime_rows=regime_rows, acm_valid=read_json("acm_validation.json"),
+        regime_rows=regime_rows, robust=robust, acm_valid=read_json("acm_validation.json"),
         shock_valid=read_json("shocks_validation.json"),
         labels=list(LABELS.items()), units=UNITS, scen_json=json.dumps(scen),
         meetings_json=json.dumps(meeting_explorer(daily, fomc_days)), repo_url=config.REPO_URL,

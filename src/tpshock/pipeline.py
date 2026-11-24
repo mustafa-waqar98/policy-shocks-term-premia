@@ -11,6 +11,7 @@ from tpshock.data import acm_official, fomc, fred, gsw
 from tpshock.models.acm import ACM
 from tpshock.shocks.identify import build_shocks
 from tpshock.transmission.lp import fomc_day_table, local_projections, ols
+from tpshock.transmission.robustness import robustness_table
 
 log = logging.getLogger("tpshock")
 P = config.PROCESSED
@@ -138,6 +139,7 @@ def transmission():
         local_projections(daily[outcomes], shocks, ["target", "path"], config.LP_HORIZONS),
     ])
     irf.round(4).to_csv(P / "irf.csv", index=False)
+    robustness_table(daily, shocks).round(4).to_csv(P / "robustness.csv", index=False)
     log.info("transmission done: %s meetings", len(table))
 
 

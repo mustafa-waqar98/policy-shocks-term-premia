@@ -114,6 +114,9 @@
   .presets button { margin-right: 6px; }
   #scen-out td.hl, #scen-out th.hl { background: #f2f6fb; }
 
+  table.robust td { vertical-align: top; }
+  .sig { font-weight: 700; color: var(--ink); } .insig { color: var(--muted); }
+  .tstat { display: block; font-size: 11px; color: var(--muted); }
   .stat .big { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; color: var(--navy); }
   .stat .cap { font-size: 12px; color: var(--ink2); }
   dl.gloss { display: grid; grid-template-columns: 220px 1fr; margin: 0; }
@@ -140,7 +143,7 @@
     <div class="brand">Fed Shocks and the Term Premium<span>US Treasuries</span></div>
     <div class="nav">
       <a href="#curve">Curve</a><a href="#fomc">FOMC</a><a href="#transmission">Transmission</a>
-      <a href="#scenario">Scenarios</a><a href="#validation">Validation</a><a href="#glossary">Glossary</a>
+      <a href="#robustness">Robustness</a><a href="#scenario">Scenarios</a><a href="#validation">Validation</a><a href="#glossary">Glossary</a>
       <a class="btn" href="{{ repo_url }}">GitHub</a>
     </div>
   </div></div>
@@ -258,8 +261,27 @@
     </div>
   </section>
 
+  {% if robust %}
+  <section id="robustness">
+    <div class="section-head"><span class="idx">04</span><h2>Do the results hold up?</h2></div>
+    <p class="sub">Each headline result re-estimated on different sets of meetings. Bold numbers are statistically significant
+    (90% level); the number underneath is the t-statistic. A result that is bold across the row is robust; one that is bold
+    in only one period belongs to that period.</p>
+    <div class="card">
+      <table class="robust">
+        <tr><th class="l">Result, per 10bp shock (bp)</th>{% for c in robust.checks %}<th>{{ c }}</th>{% endfor %}</tr>
+        {% for r in robust.rows %}
+        <tr><td class="l">{{ r.result }}</td>
+        {% for c in r.cells %}<td>{% if c %}<span class="{{ 'sig' if c.t|abs > 1.645 else 'insig' }}">{{ "%+.1f"|format(c.coef) }}</span><span class="tstat">t = {{ "%.1f"|format(c.t) }}</span>{% endif %}</td>{% endfor %}</tr>
+        {% endfor %}
+        <tr class="group"><td class="l">Meetings in sample</td>{% for c in robust.rows[0].cells %}<td style="text-align:right">{{ c.meetings if c else "" }}</td>{% endfor %}</tr>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
   <section id="scenario">
-    <div class="section-head"><span class="idx">04</span><h2>Scenario tool</h2></div>
+    <div class="section-head"><span class="idx">05</span><h2>Scenario tool</h2></div>
     <p class="sub">Size a hypothetical surprise and read off the historical average response. Useful before a meeting: what has a hawkish dot plot
     (a path shock) or a surprise cut (a target shock) typically done to the curve? Linear in the shock; point estimates only.</p>
     <div class="card">
@@ -277,7 +299,7 @@
   </section>
 
   <section id="validation">
-    <div class="section-head"><span class="idx">05</span><h2>Validation</h2></div>
+    <div class="section-head"><span class="idx">06</span><h2>Validation</h2></div>
     <p class="sub">Both building blocks are checked against published series on every update.</p>
     <div class="grid-3">
       {% if acm_valid %}<div class="card stat"><div class="big num">{{ acm_valid.corr_10y }}</div><div class="cap">Correlation with the NY Fed's published 10y term premium over {{ acm_valid.months_compared }} months</div></div>
@@ -288,7 +310,7 @@
   </section>
 
   <section id="glossary">
-    <div class="section-head"><span class="idx">06</span><h2>Glossary</h2></div>
+    <div class="section-head"><span class="idx">07</span><h2>Glossary</h2></div>
     <div class="card" style="margin-top:16px">
       <dl class="gloss">
         <dt>Expected short rates</dt><dd>The average overnight rate the market expects over a bond's life. Moves with the Fed's expected policy path.</dd>

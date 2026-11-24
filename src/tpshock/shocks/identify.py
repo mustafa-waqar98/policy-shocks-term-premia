@@ -115,5 +115,8 @@ def build_shocks(surprises: pd.DataFrame, start_year: int = config.JK_START_YEAR
     stocks = s[config.JK_STOCK_VAR]
     out = pd.concat([pc1, stocks.rename("SP500"), poor_mans(pc1, stocks),
                      median_rotation(pc1, stocks), target_path(s)], axis=1)
+    # Unscheduled (emergency) announcements are flagged so robustness checks can drop them
+    if "Event" in s:
+        out["scheduled"] = ~s["Event"].str.contains("Unscheduled", na=False)
     out.index.name = "start"
     return out
