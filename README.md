@@ -23,9 +23,30 @@ The project combines two well-known pieces of empirical macro-finance and links 
      or a signal about the economy (stocks rise)?
 3. **Transmission**: event regressions and local projections (Jorda 2005) tracing how each type of
    shock moves expected rates and the term premium over the following three months, split by
-   regime (pre-2008 vs the QE and post-QE era).
+   regime (pre-2008 vs the QE and post-QE era), plus a split of 5y5y forwards into expected rates vs
+   term premium and real vs breakeven inflation.
 
 Everything is rebuilt from public data every weekday by GitHub Actions and published to the dashboard.
+
+## Findings
+
+Per 10bp shock, FOMC announcements 1990 to 2026. Full tables, robustness checks and charts are on the dashboard.
+
+1. **Rate surprises and guidance surprises move the term premium in opposite directions.** A surprise in today's
+   decision raises 10y expected rates by 3.2bp on the day and lowers the 10y term premium by 2.3bp. A guidance
+   (path) surprise leaves the term premium flat on the day, then it builds to +7.4bp after 20 trading days.
+2. **The guidance effect is a post-2008 phenomenon.** Zero before 2008 (-0.3bp), +17bp since. The response of real
+   yields to a tightening shows the same split: +3bp before, +26bp after.
+3. **It lands in the far future, and in real rates.** After a guidance surprise the 5y5y forward rises 10.9bp
+   over 20 days. Of that, 9.7bp is term premium and 1.2bp expected rates. The real 5y5y forward (TIPS) rises
+   13.6bp while breakevens barely move (+2.0bp, not significant). This is the real term premium channel of
+   Hanson and Stein (2015).
+4. **Robust to the usual objections.** Dropping 2020 changes nothing (+7.2bp vs +7.4bp). The rate-surprise result
+   holds in every subsample. Dropping unscheduled meetings weakens the guidance result slightly but keeps its
+   sign and size.
+
+Caveats: the TIPS pieces start in 2003 (204 meetings) and use par yields; bands are wide beyond 20 trading days;
+model-based term premium levels are less reliable than their changes.
 
 ## What it is useful for
 
@@ -42,7 +63,7 @@ Both building blocks are checked against published series, and the checks run on
 
 | Component | Benchmark | Result |
 |---|---|---|
-| ACM term premium | NY Fed published ACM series | correlation and RMSE shown on the dashboard |
+| ACM term premium | NY Fed published ACM series | correlation 0.9996, average gap about 1bp after anchoring to the T-bill rate (18bp when using the curve's own 1-month point) |
 | FOMC shocks (pc1, MP, CBI, both decompositions) | Jarocinski and Karadi published shocks | identical to 8 decimal places on all meetings |
 | ACM estimator | simulated curve with a known term premium | recovers term premium dynamics (correlation > 0.95), see `tests/test_acm.py` |
 
