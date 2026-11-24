@@ -35,7 +35,21 @@ FRED_FORWARD_INPUTS = {
     "DFII5": "5y TIPS real yield",
 }
 # Everything downloaded from FRED
-FRED_SERIES = {**FRED_OUTCOMES, **FRED_FORWARD_INPUTS, "DTB3": "3-month Treasury bill, discount basis"}
+FRED_SERIES = {**FRED_OUTCOMES, **FRED_FORWARD_INPUTS,
+               "DTB3": "3-month Treasury bill, discount basis",
+               "DGS2": "2y Treasury yield (meeting-day surprise proxy)"}
+
+# FOMC announcements since 2008 that included balance sheet news (asset purchases, reinvestment,
+# maturity extension, tapering, runoff). Hand-coded from the FOMC statements; used to check that
+# the post-2008 guidance results are not just QE announcements in disguise.
+BALANCE_SHEET_DATES = [
+    "2008-12-16", "2009-01-28", "2009-03-18", "2009-08-12", "2009-09-23", "2009-11-04",
+    "2010-08-10", "2010-09-21", "2010-11-03", "2011-06-22", "2011-09-21", "2012-06-20",
+    "2012-09-13", "2012-12-12", "2013-06-19", "2013-09-18", "2013-12-18", "2014-10-29",
+    "2017-06-14", "2017-09-20", "2019-01-30", "2019-03-20", "2019-07-31", "2020-03-15",
+    "2020-03-23", "2020-06-10", "2020-12-16", "2021-11-03", "2021-12-15", "2022-01-26",
+    "2022-03-16", "2022-05-04", "2024-05-01", "2025-03-19", "2025-10-29",
+]
 FORWARD_OUTCOMES = {
     "fwd_nominal": "5y5y nominal forward",
     "fwd_expected": "of which: expected rates",

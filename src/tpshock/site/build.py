@@ -340,14 +340,24 @@ def build(out_dir: Path = config.SITE_OUT):
     scen = {s: {o: irf[(irf.shock == s) & (irf.outcome == o)].sort_values("h")[["h", "coef"]].to_dict("list")
                 for o in irf.outcome.unique()} for s in irf.shock.unique()}
 
-    robust = None
+    robust = []
     if (P / "robustness.csv").exists():
         rb = pd.read_csv(P / "robustness.csv")
-        checks = list(dict.fromkeys(rb.check))
-        results = list(dict.fromkeys(rb.result))
         cell = {(r.result, r.check): r for r in rb.itertuples()}
-        robust = {"checks": checks,
-                  "rows": [{"result": res, "cells": [cell.get((res, c)) for c in checks]} for res in results]}
+        for title, pick in [("Full sample and by period", lambda c: not c.startswith("2008-present,")),
+                            ("Inside the post-2008 sample, where the guidance results live",
+                             lambda c: c == "2008-present" or c.startswith("2008-present,"))]:
+            checks = [c for c in dict.fromkeys(rb.check) if pick(c)]
+            results = [r for r in dict.fromkeys(rb.result) if any((r, c) in cell for c in checks)]
+            robust.append({"title": title,
+                           "checks": [c.replace("2008-present, ", "") if c != "2008-present" else "All 2008+"
+                                      for c in checks],
+                           "rows": [{"result": res, "cells": [cell.get((res, c)) for c in checks]}
+                                    for res in results]})
+
+    single = None
+    if (P / "single_meeting.csv").exists():
+        single = pd.read_csv(P / "single_meeting.csv").to_dict("records")
 
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=True)
     html = env.get_template("index.html").render(
@@ -360,7 +370,7 @@ def build(out_dir: Path = config.SITE_OUT):
         fig_irf_jk=_html(fig_irf(irf, ("MP_median", "CBI_median"))),
         fig_irf_gss=_html(fig_irf(irf, ("target", "path"))),
         fig_valid=fig_validation(P / "acm_vs_official.csv"), fig_fwd=fig_forwards(P / "irf_forwards.csv"),
-        regime_rows=regime_rows, robust=robust, acm_valid=read_json("acm_validation.json"),
+        regime_rows=regime_rows, robust=robust, single=single, acm_valid=read_json("acm_validation.json"),
         shock_valid=read_json("shocks_validation.json"),
         labels=list(LABELS.items()), units=UNITS, scen_json=json.dumps(scen),
         meetings_json=json.dumps(meeting_explorer(daily, fomc_days)), repo_url=config.REPO_URL,

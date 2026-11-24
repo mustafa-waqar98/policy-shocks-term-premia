@@ -41,10 +41,15 @@ Per 10bp shock, FOMC announcements 1990 to 2026. Full tables, robustness checks 
    over 20 days. Of that, 9.7bp is term premium and 1.2bp expected rates. The real 5y5y forward (TIPS) rises
    13.6bp while breakevens barely move (+2.0bp, not significant). This is the real term premium channel of
    Hanson and Stein (2015).
-4. **Robust to the usual objections.** Dropping 2020 changes nothing (+7.2bp vs +7.4bp). The rate-surprise result
-   holds in every subsample. Dropping unscheduled meetings weakens the guidance result slightly but keeps its
-   sign and size. Re-estimating the term premium with a small-sample bias-corrected VAR makes the rate-surprise
-   result stronger (-3.7bp) and leaves the guidance result at +6.3bp (+13.8bp since 2008).
+4. **Robust to the usual objections.** Inside the post-2008 sample, the 20-day guidance effect on the 10y term
+   premium is +17.1bp (t 2.7); excluding the 35 balance sheet announcement meetings +17.0bp (t 2.2); excluding
+   2020 +16.9bp; scheduled meetings only +15.7bp; only guidance surprises where stocks fell +16.6bp (t 2.5); with a
+   small-sample bias-corrected VAR +13.8bp (t 2.0). Full tables in the dashboard's robustness section.
+5. **Weak but real at a single meeting.** Since 2008, the real 5y5y forward moved in the direction of the
+   meeting-day 2y move over the next 20 trading days after 66% of the 94 meetings where the 2y moved at least 3bp,
+   against 54% in 20-day windows with no meeting (p = 0.02, two-sided, block bootstrap). "Real moves more than
+   breakeven" shows no edge at all (63% vs 64%): it is how TIPS behave, not a Fed effect. See
+   `src/tpshock/transmission/single_meeting.py`.
 
 Caveats: the TIPS pieces start in 2003 (204 meetings) and use par yields; bands are wide beyond 20 trading days;
 model-based term premium levels are less reliable than their changes.
@@ -64,7 +69,7 @@ Both building blocks are checked against published series, and the checks run on
 
 | Component | Benchmark | Result |
 |---|---|---|
-| ACM term premium | NY Fed published ACM series | correlation 0.9996, average gap about 1bp after anchoring to the T-bill rate (18bp when using the curve's own 1-month point) |
+| ACM term premium | NY Fed published ACM series | correlation 0.9996 in levels, 0.96 in daily changes, 0.99 on FOMC days; average gap about 1bp after anchoring to the T-bill rate (18bp when using the curve's own 1-month point) |
 | FOMC shocks (pc1, MP, CBI, both decompositions) | Jarocinski and Karadi published shocks | identical to 8 decimal places on all meetings |
 | ACM estimator | simulated curve with a known term premium | recovers term premium dynamics (correlation > 0.95), see `tests/test_acm.py` |
 | Bias correction | simulated curve | raises VAR persistence, leaves fitted yields unchanged, see `tests/test_acm.py` |

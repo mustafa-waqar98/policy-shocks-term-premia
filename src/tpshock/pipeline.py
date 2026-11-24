@@ -13,6 +13,7 @@ from tpshock.shocks.identify import build_shocks
 from tpshock.transmission.forwards import forward_panel
 from tpshock.transmission.lp import fomc_day_table, local_projections, ols
 from tpshock.transmission.robustness import robustness_table
+from tpshock.transmission.single_meeting import run as single_meeting_tests
 
 log = logging.getLogger("tpshock")
 P = config.PROCESSED
@@ -90,8 +91,23 @@ def validate_term_premium():
     j = ours[["tp120", "tp24"]].join(off[["ACMTP10", "ACMTP02"]], how="inner").dropna()
     stats = {"months_compared": len(j),
              "corr_10y": round(float(j.tp120.corr(j.ACMTP10)), 4),
+             "corr_10y_monthly_changes": round(float(j.tp120.diff().corr(j.ACMTP10.diff())), 4),
              "rmse_10y_bp": round(float(np.sqrt(((j.tp120 - j.ACMTP10) ** 2).mean()) * 100), 1),
+             "mean_gap_10y_bp": round(float((j.tp120 - j.ACMTP10).mean() * 100), 1),
              "corr_2y": round(float(j.tp24.corr(j.ACMTP02)), 4)}
+    # Everything downstream uses changes, so compare daily changes too, and on FOMC days
+    try:
+        off_d = acm_official.load(sheet="ACM Daily")
+        ours_d = pd.read_csv(P / "acm_daily.csv", index_col=0, parse_dates=True)
+        jd = ours_d[["tp120"]].join(off_d[["ACMTP10"]], how="inner").dropna().diff().dropna()
+        stats["corr_10y_daily_changes"] = round(float(jd.tp120.corr(jd.ACMTP10)), 4)
+        if (P / "shocks.csv").exists():
+            days = pd.read_csv(P / "shocks.csv", index_col=0, parse_dates=True).index.normalize()
+            jf = jd[jd.index.isin(days)]
+            stats["corr_10y_fomc_day_changes"] = round(float(jf.tp120.corr(jf.ACMTP10)), 4)
+            stats["fomc_days_compared"] = len(jf)
+    except Exception as exc:
+        log.warning("daily comparison skipped: %s", exc)
     j.to_csv(P / "acm_vs_official.csv")
     (P / "acm_validation.json").write_text(json.dumps(stats, indent=2))
     log.info("validation vs NY Fed: %s", stats)
@@ -156,6 +172,7 @@ def transmission():
     irf.round(4).to_csv(P / "irf.csv", index=False)
 
     # Far-forward split: expected vs term premium, real vs inflation
+    fwd = None
     try:
         fwd = forward_panel(daily, all_fred)
         fwd_irf = pd.concat([local_projections(fwd, shocks, s, config.LP_HORIZONS)
@@ -164,7 +181,16 @@ def transmission():
         log.info("forward split done: %s", ", ".join(fwd.columns))
     except NotImplementedError as exc:
         log.warning("skipping forward split: %s", exc)
-    robustness_table(daily, shocks).round(4).to_csv(P / "robustness.csv", index=False)
+
+    panel = daily.join(fwd) if fwd is not None else daily
+    robustness_table(panel, shocks).round(4).to_csv(P / "robustness.csv", index=False)
+
+    # Single-meeting tests: hit rates after meetings vs meeting-free windows
+    sm = single_meeting_tests(all_fred, daily, shocks)
+    if not sm.empty:
+        sm.round(4).to_csv(P / "single_meeting.csv", index=False)
+        (P / "single_meeting_meta.json").write_text(json.dumps(
+            {"zero_2y_moves_on_meeting_days": sm.attrs.get("zero_2y_moves_on_meeting_days")}, indent=2))
     log.info("transmission done: %s meetings", len(table))
 
 
@@ -172,8 +198,8 @@ def run_all(skip_fetch: bool = False):
     if not skip_fetch:
         fetch()
     fit_term_premium()
-    validate_term_premium()
     identify_shocks()
+    validate_term_premium()
     transmission()
     from tpshock.site.build import build
     build()

@@ -76,6 +76,7 @@
   .grid-2 { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; }
   .grid-2e { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
   .stack > * + * { margin-top: 16px; }
 
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
@@ -130,7 +131,7 @@
 
   @media (max-width: 980px) {
     .tiles, .summary { grid-template-columns: 1fr 1fr; }
-    .grid-2, .grid-2e, .grid-3, footer .wrap { grid-template-columns: 1fr; }
+    .grid-2, .grid-2e, .grid-3, .grid-4, footer .wrap { grid-template-columns: 1fr; }
     dl.gloss { grid-template-columns: 1fr; } dl.gloss dt { border-bottom: 0; padding-bottom: 0; }
     .nav a:not(.btn) { display: none; }
   }
@@ -277,17 +278,35 @@
     <div class="section-head"><span class="idx">05</span><h2>Do the results hold up?</h2></div>
     <p class="sub">Each headline result re-estimated on different sets of meetings. Bold numbers are statistically significant
     (90% level); the number underneath is the t-statistic. A result that is bold across the row is robust; one that is bold
-    in only one period belongs to that period.</p>
-    <div class="card">
+    in only one period belongs to that period. Balance sheet announcements are a hand-coded list of FOMC statements with
+    asset purchase, reinvestment, taper or runoff news.</p>
+    {% for tbl in robust %}
+    <div class="card" style="margin-bottom:16px">
+      <h3>{{ tbl.title }}</h3>
       <table class="robust">
-        <tr><th class="l">Result, per 10bp shock (bp)</th>{% for c in robust.checks %}<th>{{ c }}</th>{% endfor %}</tr>
-        {% for r in robust.rows %}
+        <tr><th class="l">Result, per 10bp shock (bp)</th>{% for c in tbl.checks %}<th>{{ c }}</th>{% endfor %}</tr>
+        {% for r in tbl.rows %}
         <tr><td class="l">{{ r.result }}</td>
         {% for c in r.cells %}<td>{% if c %}<span class="{{ 'sig' if c.t|abs > 1.645 else 'insig' }}">{{ "%+.1f"|format(c.coef) }}</span><span class="tstat">t = {{ "%.1f"|format(c.t) }}</span>{% endif %}</td>{% endfor %}</tr>
         {% endfor %}
-        <tr class="group"><td class="l">Meetings in sample</td>{% for c in robust.rows[0].cells %}<td style="text-align:right">{{ c.meetings if c else "" }}</td>{% endfor %}</tr>
       </table>
     </div>
+    {% endfor %}
+    {% if single %}
+    <div class="card">
+      <h3>Does it show up at a single meeting?</h3>
+      <p class="note">Hit rate in the 20 trading days after each FOMC meeting since 2008, against the same test over 20-day windows
+      with no meeting inside them. The 2y move on the meeting day (FRED DGS2) stands in for the surprise. Control-window
+      uncertainty from a moving-block bootstrap; p-values two-sided.</p>
+      <table>
+        <tr><th class="l">Test</th><th>Meetings</th><th>After FOMC</th><th>No-meeting windows</th><th>p-value</th></tr>
+        {% for r in single %}
+        <tr><td class="l">{{ r.test }}</td><td>{{ r.meetings }}</td><td><span class="{{ 'sig' if r.p_two_sided < 0.1 else 'insig' }}">{{ "%.0f"|format(100 * r.fomc_rate) }}%</span></td>
+        <td>{{ "%.0f"|format(100 * r.control_rate) }}%</td><td>{{ "%.3f"|format(r.p_two_sided) }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
   </section>
   {% endif %}
 
@@ -312,8 +331,9 @@
   <section id="validation">
     <div class="section-head"><span class="idx">07</span><h2>Validation</h2></div>
     <p class="sub">Both building blocks are checked against published series on every update.</p>
-    <div class="grid-3">
-      {% if acm_valid %}<div class="card stat"><div class="big num">{{ acm_valid.corr_10y }}</div><div class="cap">Correlation with the NY Fed's published 10y term premium over {{ acm_valid.months_compared }} months</div></div>
+    <div class="grid-4">
+      {% if acm_valid %}<div class="card stat"><div class="big num">{{ acm_valid.corr_10y }}</div><div class="cap">Correlation in levels with the NY Fed's published 10y term premium over {{ acm_valid.months_compared }} months</div></div>
+      {% if acm_valid.corr_10y_daily_changes %}<div class="card stat"><div class="big num">{{ acm_valid.corr_10y_daily_changes }}</div><div class="cap">Correlation in daily changes, the comparison that matters here ({{ acm_valid.corr_10y_monthly_changes }} monthly, {{ acm_valid.corr_10y_fomc_day_changes }} on {{ acm_valid.fomc_days_compared }} FOMC days)</div></div>{% endif %}
       <div class="card stat"><div class="big num">{{ acm_valid.rmse_10y_bp }}bp</div><div class="cap">Root mean squared gap to the NY Fed series. Anchoring expected rates to the actual T-bill rate, not the curve's extrapolated 1-month point, cut it from 18.6bp</div></div>{% endif %}
       {% if shock_valid %}<div class="card stat"><div class="big num">{{ shock_valid.meetings }} / {{ shock_valid.meetings }}</div><div class="cap">FOMC shocks matching Jarocinski and Karadi's published series to 8 decimal places</div></div>{% endif %}
     </div>

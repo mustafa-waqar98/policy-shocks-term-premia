@@ -4,6 +4,7 @@
 2. [ACM term premium](#2-acm-term-premium)
 3. [FOMC shocks](#3-fomc-shocks)
 4. [Transmission](#4-transmission)
+5. [Single-meeting tests](#5-single-meeting-tests)
 
 ---
 
@@ -203,6 +204,29 @@ exceeds the gap between meetings, so standard errors are Newey-West with $`\lcei
 Responses are reported per 10bp shock.
 
 Code: [`src/tpshock/transmission/lp.py`](../src/tpshock/transmission/lp.py)
+
+---
+
+## 5. Single-meeting tests
+
+Local projections estimate average responses across many meetings. To check whether a result shows up at a
+single meeting, each FOMC meeting since 2008 is scored on a yes/no test over the window from the close before the
+meeting to 20 trading days after. The meeting-day change in the 2y Treasury yield (FRED `DGS2`) stands in for the
+surprise, as in Hanson and Stein (2015).
+
+The same test is run on every 20-day window since 2008 that contains no FOMC meeting. Neighbouring control
+windows share most of their days, so the uncertainty in the control hit rate comes from a moving-block bootstrap
+with 21-day blocks; p-values are two-sided. Tests reported: real 5y5y moves more than breakeven 5y5y; real 5y5y
+moves in the direction of the meeting-day 2y move, for minimum 2y moves of 0 (any nonzero move), 2, 3, 4 and 5bp;
+and the 10y term premium moves in the direction of the 2y move. The 3bp cutoff was chosen once, near the median
+meeting-day move, and not tuned; the other cutoffs are shown so that can be judged.
+
+Code: [`src/tpshock/transmission/single_meeting.py`](../src/tpshock/transmission/single_meeting.py)
+
+### Balance sheet announcements
+
+The post-2008 robustness checks drop FOMC meetings whose statement included balance sheet news (asset purchases,
+reinvestment, maturity extension, tapering, runoff). The list is hand-coded in `config.BALANCE_SHEET_DATES`.
 
 ---
 
