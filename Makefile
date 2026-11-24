@@ -1,3 +1,5 @@
+export PYTHONPATH := src
+
 setup:
 	python3 -m venv .venv
 	.venv/bin/pip install -e ".[dev]"

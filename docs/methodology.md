@@ -97,6 +97,16 @@ The **term premium** is the difference:
 TP_t^{(n)} = y_t^{(n)} - y_t^{(n), \text{RN}}
 ```
 
+### Which short rate
+
+The short rate $`r_t`$ anchors the expected-rate path, so its level passes straight into the split. The GSW
+curve is fitted to notes and bonds only, so its 1-month point is an extrapolation, and actual Treasury bills
+usually yield less than that because investors pay for their cash-like safety. Using the curve's 1-month
+yield left our 10y term premium 18bp below the NY Fed's series on average (correlation 0.9997). Using the
+3-month T-bill rate (FRED `DTB3`, converted from discount basis to a continuously compounded yield) closes
+the gap to about 1bp on average and cuts the root mean squared difference from 18.6bp to 5.9bp. The setting
+is `SHORT_RATE` in `config.py`.
+
 ### Daily series
 
 Parameters are estimated on month-end data. Daily factors come from projecting daily yields on the same

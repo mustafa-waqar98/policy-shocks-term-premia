@@ -61,7 +61,7 @@ class ACM:
 
     # ---- estimation -------------------------------------------------------
 
-    def fit(self, yields: pd.DataFrame) -> "ACM":
+    def fit(self, yields: pd.DataFrame, short_rate: pd.Series | None = None) -> "ACM":
         """yields: month-end zero yields in percent, columns = maturities 1..N months."""
         mats = list(yields.columns)
         assert mats[0] == 1, "need the 1-month yield as the short rate"
@@ -73,7 +73,10 @@ class ACM:
         # Log prices: p_t^(n) = -(n/12) * y_t^(n)
         n_years = np.array(mats) / 12.0
         logp = -Y * n_years[None, :]
-        rf = Y[:, 0] / 12.0  # one-month rate, decimal per month
+        if short_rate is None:
+            rf = Y[:, 0] / 12.0  # 1-month yield read off the fitted curve
+        else:
+            rf = short_rate.to_numpy() / 100.0 / 12.0 #actual T-bill rate
 
         # Step 1: principal components and VAR(1)
         mean = Y.mean(axis=0)

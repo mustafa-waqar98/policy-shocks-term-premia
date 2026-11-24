@@ -281,7 +281,7 @@
     <p class="sub">Both building blocks are checked against published series on every update.</p>
     <div class="grid-3">
       {% if acm_valid %}<div class="card stat"><div class="big num">{{ acm_valid.corr_10y }}</div><div class="cap">Correlation with the NY Fed's published 10y term premium over {{ acm_valid.months_compared }} months</div></div>
-      <div class="card stat"><div class="big num">{{ acm_valid.rmse_10y_bp }}bp</div><div class="cap">Average gap to the NY Fed series, almost entirely a constant level difference (under investigation)</div></div>{% endif %}
+      <div class="card stat"><div class="big num">{{ acm_valid.rmse_10y_bp }}bp</div><div class="cap">Root mean squared gap to the NY Fed series. Anchoring expected rates to the actual T-bill rate, not the curve's extrapolated 1-month point, cut it from 18.6bp</div></div>{% endif %}
       {% if shock_valid %}<div class="card stat"><div class="big num">{{ shock_valid.meetings }} / {{ shock_valid.meetings }}</div><div class="cap">FOMC shocks matching Jarocinski and Karadi's published series to 8 decimal places</div></div>{% endif %}
     </div>
     {% if fig_valid %}<div class="card" style="margin-top:16px"><h3>10y term premium: this project vs NY Fed</h3>{{ fig_valid|safe }}</div>{% endif %}

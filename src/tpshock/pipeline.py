@@ -34,7 +34,16 @@ def fit_term_premium():
     params = gsw.load()
     mats = list(range(1, config.ACM_MAX_MATURITY + 1))
     monthly = gsw.svensson(gsw.month_end(params).loc[config.ACM_START:], mats)
-    model = ACM(config.ACM_N_FACTORS, config.ACM_RETURN_MATURITIES, config.ACM_MAX_MATURITY).fit(monthly)
+    model = ACM(config.ACM_N_FACTORS, config.ACM_RETURN_MATURITIES, config.ACM_MAX_MATURITY)
+    if config.SHORT_RATE == "tbill":
+        # T-bill rate on (or just before) each month-end date of the curve
+        bill = fred.tbill_cc().sort_index()
+        short = bill.reindex(monthly.index, method="ffill")
+        log.info("short rate: 3-month T-bill (mean %.2f%%)", short.mean())
+        model.fit(monthly, short_rate=short)
+    else:
+        log.info("short rate: 1-month yield from the fitted curve")
+        model.fit(monthly)
 
     daily_yields = gsw.svensson(params.loc[config.ACM_START:], mats)
     daily = model.decompose(daily_yields, config.REPORT_MATURITIES)
@@ -97,6 +106,7 @@ def transmission():
     shocks = pd.read_csv(P / "shocks.csv", index_col=0, parse_dates=True)
 
     extra = fred.load_all()
+    extra = extra[[c for c in config.FRED_OUTCOMES if c in extra]]
     if not extra.empty:
         if "DTWEXBGS" in extra:
             extra["DTWEXBGS"] = np.log(extra["DTWEXBGS"])  # the x100 in the projections then gives % changes
@@ -122,7 +132,7 @@ def transmission():
                                  "r2": r2, "n": int(ok.sum())})
     pd.DataFrame(rows).round(4).to_csv(P / "event_regressions.csv", index=False)
 
-    outcomes = [c for c in ["y24", "y120", "rn120", "tp120", *config.FRED_SERIES] if c in daily]
+    outcomes = [c for c in ["y24", "y120", "rn120", "tp120", *config.FRED_OUTCOMES] if c in daily]
     irf = pd.concat([
         local_projections(daily[outcomes], shocks, ["MP_median", "CBI_median"], config.LP_HORIZONS),
         local_projections(daily[outcomes], shocks, ["target", "path"], config.LP_HORIZONS),

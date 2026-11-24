@@ -13,11 +13,11 @@ import requests
 
 log = logging.getLogger("tpshock")
 
+# Identify honestly as a script. Pretending to be a browser gets requests stalled by bot
+# protection on some sites (FRED, for one), because the connection doesn't look like Chrome's.
 HEADERS = {
-    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-                   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
-    "Accept": "text/csv,application/vnd.ms-excel,text/html,application/xhtml+xml,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
+    "User-Agent": "policy-shocks-term-premia/0.1 (research project; github.com/mustafa-waqar98)",
+    "Accept": "*/*",
 }
 
 
