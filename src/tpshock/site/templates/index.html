@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fed shocks and the term premium</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  body { font-family: Helvetica, Arial, sans-serif; color: #222; margin: 0; background: #fff; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 28px 60px; }
+  header { border-bottom: 1px solid #ddd; padding-bottom: 14px; margin-bottom: 10px; }
+  h1 { font-size: 26px; margin: 0 0 6px; font-weight: 600; }
+  h2 { font-size: 19px; margin: 38px 0 6px; font-weight: 600; }
+  p.lede { font-size: 15px; color: #444; max-width: 850px; margin: 6px 0; line-height: 1.5; }
+  p.note { font-size: 13px; color: #555; max-width: 900px; line-height: 1.5; }
+  .meta { font-size: 12px; color: #777; }
+  nav a { font-size: 13px; color: #1f4e79; margin-right: 14px; text-decoration: none; }
+  table { border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+  th, td { padding: 4px 10px; text-align: right; border-bottom: 1px solid #eee; }
+  th { font-weight: 600; border-bottom: 1px solid #bbb; }
+  td.l, th.l { text-align: left; }
+  .pos { color: #a33; } .neg { color: #1f4e79; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .box { border: 1px solid #ddd; padding: 12px 16px; }
+  input { width: 70px; padding: 3px; font-size: 13px; }
+  select { font-size: 13px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Fed shocks and the term premium</h1>
+  <p class="lede">When the Fed surprises the market, does the 10-year move because the expected
+  path of policy rates changed, or because investors demand a different premium for holding
+  duration? This dashboard splits the Treasury curve into those two pieces every day and traces
+  how identified FOMC shocks feed through each one.</p>
+  <p class="meta">Curve data to {{ last_date }} &middot; last FOMC meeting in sample {{ last_meeting }} &middot; built {{ updated }}</p>
+  <nav><a href="#today">Today</a><a href="#history">History</a><a href="#fomc">FOMC shocks</a>
+  <a href="#transmission">Transmission</a><a href="#scenario">Scenario tool</a><a href="#validation">Validation</a>
+  <a href="{{ repo_url }}">Code</a><a href="{{ repo_url }}/blob/main/docs/methodology.md">Methodology</a></nav>
+</header>
+
+<h2 id="today">Where the curve is</h2>
+<p class="note">Fitted zero-coupon yields split into the average expected short rate over the bond's life and the term premium (ACM model). Changes in basis points.</p>
+<table>
+  <tr><th class="l">Tenor</th><th class="l">Component</th><th>Level (%)</th><th>1d</th><th>1w</th><th>1m</th><th>Since last FOMC</th></tr>
+  {% for r in snap %}
+  <tr><td class="l">{{ r.tenor }}</td><td class="l">{{ r.part }}</td><td>{{ "%.2f"|format(r.level) }}</td>
+  {% for k in ["d1", "d5", "d21", "since_fomc"] %}<td class="{{ 'pos' if r[k] > 0.05 else ('neg' if r[k] < -0.05 else '') }}">{{ "%+.1f"|format(r[k]) }}</td>{% endfor %}</tr>
+  {% endfor %}
+</table>
+
+<h2 id="history">10-year yield, expected rates and term premium</h2>
+{{ fig_history|safe }}
+
+<h2 id="fomc">FOMC shocks</h2>
+<p class="note">Built from futures price changes in a 30-minute window around each announcement. The policy
+surprise is split by the reaction of stocks: a hawkish surprise that sends stocks down is a
+<b>monetary policy shock</b>; a hawkish surprise that sends stocks up is an <b>information shock</b>, the market
+reading the Fed as more upbeat on the economy (Jarocinski and Karadi 2020).</p>
+{{ fig_shocks|safe }}
+<div class="grid">
+  <div>
+    <h3 style="font-size:15px">What moved the 10y on recent FOMC days</h3>
+    {{ fig_split|safe }}
+  </div>
+  <div>
+    <h3 style="font-size:15px">Last 12 meetings</h3>
+    <table>
+      <tr><th class="l">Date</th><th>Policy surprise</th><th>MP</th><th>Info</th><th>Target</th><th>Path</th><th>&Delta;10y</th><th>&Delta;exp</th><th>&Delta;TP</th></tr>
+      {% for d, r in recent.iterrows() %}
+      <tr><td class="l">{{ d.strftime("%Y-%m-%d") }}</td>
+      {% for c in ["pc1", "MP_median", "CBI_median", "target", "path"] %}<td>{{ "%+.1f"|format(r[c] * 100) }}</td>{% endfor %}
+      {% for c in ["d_yield", "d_expectations", "d_term_premium"] %}<td>{{ "%+.1f"|format(r[c]) if r[c] == r[c] else "" }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </table>
+    <p class="note">Shocks in bp of the 1-year-ahead rate. Yield changes are close to close on the announcement day; blank if the curve data does not yet cover that day.</p>
+  </div>
+</div>
+
+<h2 id="transmission">Transmission</h2>
+<p class="note">Local projections: the change in each series from the close before the meeting to h trading
+days after, regressed on the two shocks across all meetings since 1990. Lines show the response to a
+10bp shock, bands are 90% intervals with Newey-West standard errors.</p>
+{{ fig_irf|safe }}
+<h3 style="font-size:15px">Same exercise with target and path factors (Gurkaynak, Sack and Swanson 2005)</h3>
+{{ fig_irf_gss|safe }}
+
+<h3 style="font-size:15px">Announcement-day effect on the 10y, by period (bp per 10bp shock)</h3>
+<table>
+  <tr><th class="l">Period</th><th class="l">Shock</th><th>&Delta;10y</th><th>&Delta;expected rates</th><th>&Delta;term premium</th></tr>
+  {% for (reg, sh), r in ev_table.iterrows() %}
+  <tr><td class="l">{{ reg }}</td><td class="l">{{ sh }}</td>
+  {% for o in ["d_yield", "d_expectations", "d_term_premium"] %}<td>{{ "%+.2f"|format(r[("bp_per_10bp", o)]) }} <span class="meta">({{ "%.2f"|format(r[("se", o)]) }})</span></td>{% endfor %}</tr>
+  {% endfor %}
+</table>
+
+<h2 id="scenario">Scenario tool</h2>
+<div class="box">
+<p class="note" style="margin-top:0">Type in the size of a hypothetical FOMC surprise. The table shows the historical average response
+implied by the local projections above. A desk use: before a meeting, price what a hawkish dot plot (path shock) or a
+surprise cut (target shock) has typically done to the curve and to the term premium.</p>
+<label>Decomposition <select id="scen-set"><option value="jk">MP / information</option><option value="gss">Target / path</option></select></label>
+&nbsp; <label><span id="lab-a">MP shock</span> (bp) <input id="scen-a" type="number" value="10"></label>
+&nbsp; <label><span id="lab-b">Info shock</span> (bp) <input id="scen-b" type="number" value="0"></label>
+<div id="scen-out"></div>
+<p class="meta">Point estimates only; responses are linear in the shock size. Uncertainty is large beyond 20 days.</p>
+</div>
+
+<h2 id="validation">Validation</h2>
+<ul class="note">
+  {% if acm_meta %}<li>ACM estimated on {{ acm_meta.n_months }} months ({{ acm_meta.sample[0] }} to {{ acm_meta.sample[1] }}). Mean absolute fitting error on the 10y: {{ acm_meta.mean_abs_fit_error_10y_bp }}bp.</li>{% endif %}
+  {% if acm_valid %}<li>Against the NY Fed's published ACM 10y term premium: correlation {{ acm_valid.corr_10y }}, RMSE {{ acm_valid.rmse_10y_bp }}bp over {{ acm_valid.months_compared }} months.</li>{% endif %}
+  {% if shock_valid %}<li>Shocks rebuilt from raw futures surprises match Jarocinski and Karadi's published series on all {{ shock_valid.meetings }} meetings (max difference {{ "%.0e"|format(shock_valid.max_abs_diff_vs_published) }}).</li>{% endif %}
+</ul>
+{% if fig_valid %}{{ fig_valid|safe }}{% endif %}
+
+<p class="meta" style="margin-top:40px">Data: Federal Reserve (Gurkaynak, Sack and Wright yield curve), Jarocinski and Karadi FOMC surprises (CC BY 4.0), FRED, Federal Reserve Bank of New York. Not investment advice.</p>
+</main>
+<script>
+const SCEN = {{ scen_json|safe }};
+const LABELS = {{ labels|tojson }};
+function renderScenario() {
+  const set = document.getElementById("scen-set").value;
+  const [sa, sb] = set === "jk" ? ["MP_median", "CBI_median"] : ["target", "path"];
+  document.getElementById("lab-a").textContent = set === "jk" ? "MP shock" : "Target shock";
+  document.getElementById("lab-b").textContent = set === "jk" ? "Info shock" : "Path shock";
+  const a = parseFloat(document.getElementById("scen-a").value) || 0;
+  const b = parseFloat(document.getElementById("scen-b").value) || 0;
+  const outcomes = Object.keys(LABELS).filter(o => SCEN[sa] && SCEN[sa][o]);
+  const hs = SCEN[sa][outcomes[0]].h;
+  let html = "<table><tr><th class='l'>Series</th>" + hs.map(h => `<th>h=${h}</th>`).join("") + "</tr>";
+  for (const o of outcomes) {
+    html += `<tr><td class='l'>${LABELS[o]}</td>`;
+    hs.forEach((h, i) => {
+      const v = a / 10 * SCEN[sa][o].coef[i] + b / 10 * SCEN[sb][o].coef[i];
+      html += `<td>${v >= 0 ? "+" : ""}${v.toFixed(1)}</td>`;
+    });
+    html += "</tr>";
+  }
+  document.getElementById("scen-out").innerHTML = html + "</table>";
+}
+["scen-set", "scen-a", "scen-b"].forEach(id => document.getElementById(id).addEventListener("input", renderScenario));
+renderScenario();
+</script>
+</body>
+</html>
