@@ -186,6 +186,16 @@ def transmission():
     panel = daily.join(fwd) if fwd is not None else daily
     robustness_table(panel, shocks).round(4).to_csv(P / "robustness.csv", index=False)
 
+    # Full response paths by era, for the dashboard's headline charts
+    era_cols = [c for c in ["y24", "y120", "rn120", "tp120", *config.FRED_OUTCOMES, "fwd_nominal", "fwd_expected",
+                            "fwd_tp", "fwd_real", "fwd_breakeven"] if c in panel]
+    eras = []
+    for era, (a, b) in {"all": ("1990", "2100"), "1990-2007": ("1990", "2007"),
+                        "2008-present": ("2008", "2100")}.items():
+        for s in (["target", "path"], ["MP_median", "CBI_median"]):
+            eras.append(local_projections(panel[era_cols], shocks.loc[a:b], s, list(range(61))).assign(era=era))
+    pd.concat(eras).round(4).to_csv(P / "irf_eras.csv", index=False)
+
     # Single-meeting tests: hit rates after meetings vs meeting-free windows
     sm = single_meeting_tests(all_fred, daily, shocks)
     if not sm.empty:

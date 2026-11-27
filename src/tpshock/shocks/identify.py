@@ -109,14 +109,27 @@ def median_rotation(pc1: pd.Series, stocks: pd.Series, w: float = 0.5) -> pd.Dat
     return pd.DataFrame(U, index=pc1.index, columns=["MP_median", "CBI_median"])
 
 
+def scheduled_flag(times: pd.DatetimeIndex, fallback=None) -> pd.Series:
+    """True for announcements on a scheduled FOMC decision date."""
+    flag = pd.Series(True if fallback is None else fallback, index=times).astype(bool)
+    f = config.FOMC_SCHEDULED_FILE
+    if f.exists():
+        sched = set(pd.to_datetime(pd.read_csv(f).date))
+        covered = times >= pd.Timestamp(config.FOMC_SCHEDULED_START)
+        flag[covered] = [t.normalize() in sched for t in times[covered]]
+    return flag
+
+
 def build_shocks(surprises: pd.DataFrame, start_year: int = config.JK_START_YEAR) -> pd.DataFrame:
     s = surprises[surprises.index.year >= start_year]
     pc1 = policy_factor(s)
     stocks = s[config.JK_STOCK_VAR]
     out = pd.concat([pc1, stocks.rename("SP500"), poor_mans(pc1, stocks),
                      median_rotation(pc1, stocks), target_path(s)], axis=1)
-    # Unscheduled (emergency) announcements are flagged so robustness checks can drop them
+    # Unscheduled (emergency) announcements are flagged so robustness checks can drop them.
+    # From 1994-09-27 the Fed's calendar decides; before that, the JK event label.
     if "Event" in s:
         out["scheduled"] = ~s["Event"].str.contains("Unscheduled", na=False)
+    out["scheduled"] = scheduled_flag(out.index, out.get("scheduled"))
     out.index.name = "start"
     return out

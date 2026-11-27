@@ -43,7 +43,7 @@ Per 10bp shock, FOMC announcements 1990 to 2026. Full tables, robustness checks 
    Hanson and Stein (2015).
 4. **Robust to the usual objections.** Inside the post-2008 sample, the 20-day guidance effect on the 10y term
    premium is +17.1bp (t 2.7); excluding the 35 balance sheet announcement meetings +17.0bp (t 2.2); excluding
-   2020 +16.9bp; scheduled meetings only +15.7bp; only guidance surprises where stocks fell +16.6bp (t 2.5); with a
+   2020 +16.9bp; scheduled meetings only +12.0bp (t 3.1); only guidance surprises where stocks fell +16.6bp (t 2.5); with a
    small-sample bias-corrected VAR +13.8bp (t 2.0). Full tables in the dashboard's robustness section.
 5. **Weak but real at a single meeting.** Since 2008, the real 5y5y forward moved in the direction of the
    meeting-day 2y move over the next 20 trading days after 66% of the 94 meetings where the 2y moved at least 3bp,
@@ -54,6 +54,14 @@ Per 10bp shock, FOMC announcements 1990 to 2026. Full tables, robustness checks 
    (he dropped forward guidance in June 2026) in the dashboard's scorecard, updated every weekday. For
    comparison, the rule shows no edge in 2003 to 2007 (52% of 31 meetings against 60%). See
    `src/tpshock/transmission/scorecard.py`.
+7. **It builds for a month, then fades.** Traced day by day, the post-2008 term premium response peaks around
+   day 20 (+17bp) and is back to +3bp by day 60. It is a month-long drift, not a permanent shift.
+8. **Treasury supply news moves the long end the expected way, but only a little.** On the 41 quarterly refunding
+   statements since 2009 with no FOMC meeting within a day, the 10y rises 1.2bp per $10bn of extra
+   10-year-equivalent coupon supply (t 2.5; 2.3bp without February 2009). The median size change is about $4bn,
+   so a typical refunding is worth half a basis point to a basis point, small next to the guidance effect. Monthly
+   private duration supply rises almost every year, so it can't be separated from time (correlation 0.97 across
+   post-2008 meetings). See `src/tpshock/supply/`.
 
 Caveats: the TIPS pieces start in 2003 (204 meetings) and use par yields; bands are wide beyond 20 trading days;
 model-based term premium levels are less reliable than their changes.
@@ -86,7 +94,8 @@ src/tpshock/
   models/acm.py    the ACM term structure model
   shocks/          policy factor, target/path, policy/information decompositions
   transmission/    event regressions and local projections with Newey-West errors
-  site/            static dashboard builder (Plotly + Jinja)
+  supply/          Treasury supply: debt by security (MSPD) minus Fed holdings (SOMA), refunding statements
+  site/            static dashboard builder (Plotly + Jinja); theme.py holds the validated colour roles
   pipeline.py      the end-to-end steps
   cli.py           `tpshock <step>` command
 tests/             unit tests, simulation tests and replication tests
@@ -110,12 +119,21 @@ make test       # lint and run the tests
 
 Individual steps: `tpshock fetch | fit | validate | shocks | transmit | site | all`.
 
+The supply data is monthly, so it runs by hand, about once a month, and writes small files to `data/reference/`:
+
+```bash
+PYTHONPATH=src python -m tpshock.supply fetch
+PYTHONPATH=src python -m tpshock.supply build
+```
+
 ## Data
 
 - Federal Reserve Board, [Gurkaynak, Sack and Wright Treasury yield curve](https://www.federalreserve.gov/data/nominal-yield-curve.htm)
 - Jarocinski and Karadi, [updated FOMC surprises and shocks](https://github.com/marekjarocinski/jkshocks_update_fed) (CC BY 4.0)
 - Federal Reserve Bank of New York, [ACM term premia](https://www.newyorkfed.org/research/data_indicators/term-premia-tabs) (validation only)
-- FRED: breakevens, TIPS yields, Baa spread, broad dollar index
+- FRED: breakevens, TIPS yields, Baa spread, broad dollar index, GDP
+- US Treasury, [Monthly Statement of the Public Debt](https://fiscaldata.treasury.gov/datasets/monthly-statement-public-debt/) (every marketable security outstanding) and [auction results](https://fiscaldata.treasury.gov/datasets/treasury-securities-auctions-data/) (refunding sizes and dates)
+- Federal Reserve Bank of New York, [SOMA holdings](https://www.newyorkfed.org/markets/soma-holdings) by security
 
 ## References
 

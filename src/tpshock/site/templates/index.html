@@ -3,137 +3,174 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fed Shocks and the Term Premium</title>
-<meta name="description" content="Daily decomposition of the US Treasury curve into expected rates and term premium, and how FOMC shocks move each.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Fed guidance surprises and the term premium</title>
+<meta name="description" content="When the Fed surprises markets on guidance, the 10-year term premium builds over the following month. A live, reproducible decomposition of the US Treasury curve and every FOMC surprise since 1990.">
+<script>
+  // set the theme before first paint, so there is no flash
+  (function () { let t = null; try { t = localStorage.getItem("theme"); } catch (e) {}
+    if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t; })();
+</script>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
   :root {
-    --bg: #f3f5f8; --surface: #ffffff; --border: #e1e6ec; --rule: #eef1f5;
-    --ink: #111827; --ink2: #4b5563; --muted: #8b95a3;
-    --navy: #184f95; --sky: #3d9be9; --charcoal: #2b3340;
-    --band: #0f2744; --band2: #163a63; --link: #184f95;
+    {% for k, v in light.items() %}--{{ k|replace('_', '-') }}: {{ v }}; {% endfor %}
+    --band: #0f2744; --band2: #163a63; --band-ink: #d4deea; --band-muted: #9fb3cc;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    {% for k, v in dark.items() %}--{{ k|replace('_', '-') }}: {{ v }}; {% endfor %}
+    --band: #0a1a2e; --band2: #10253f;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; scroll-padding-top: 70px; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: Figtree, Helvetica, Arial, sans-serif;
-         font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
-  .num { font-variant-numeric: tabular-nums; }
-  a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
-  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body { margin: 0; background: var(--page); color: var(--ink); font-family: {{ font|safe }};
+         font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .num, td, th { font-variant-numeric: tabular-nums; }
+  a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
 
   /* header band */
-  .band { background: linear-gradient(180deg, var(--band) 0%, var(--band2) 100%); color: #fff; padding-bottom: 92px; }
-  .topbar { position: sticky; top: 0; z-index: 20; background: rgba(15,39,68,0.97); border-bottom: 1px solid rgba(255,255,255,0.08); }
-  .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; }
-  .brand { font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -0.01em; }
-  .brand span { color: #9fb3cc; font-weight: 500; margin-left: 8px; }
-  .nav a { color: #c9d6e6; font-size: 13px; font-weight: 500; margin-left: 20px; }
+  .band { background: linear-gradient(180deg, var(--band) 0%, var(--band2) 100%); color: #fff; padding-bottom: 96px; }
+  .topbar { position: sticky; top: 0; z-index: 20; background: rgba(15,39,68,0.97); border-bottom: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(6px); }
+  .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
+  .brand { font-weight: 650; font-size: 15px; color: #fff; white-space: nowrap; }
+  .nav { display: flex; align-items: center; gap: 18px; }
+  .nav a { color: #c9d6e6; font-size: 13px; font-weight: 500; }
   .nav a:hover { color: #fff; text-decoration: none; }
-  .nav a.btn { border: 1px solid rgba(255,255,255,0.25); padding: 6px 12px; border-radius: 6px; color: #fff; }
-  .hero { padding: 40px 0 0; }
-  .eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #9fb3cc; font-weight: 600; }
-  .hero h1 { font-size: 32px; line-height: 1.2; margin: 8px 0 12px; font-weight: 700; letter-spacing: -0.02em; max-width: 920px; }
-  .hero p { font-size: 16px; color: #d4deea; max-width: 820px; margin: 0; }
-  .stamp { margin-top: 16px; font-size: 12px; color: #9fb3cc; }
+  .nav .btn { border: 1px solid rgba(255,255,255,0.25); padding: 5px 11px; border-radius: 6px; color: #fff; background: none;
+              font: inherit; font-size: 13px; cursor: pointer; }
+  .hero { padding: 44px 0 0; display: grid; grid-template-columns: 1.35fr 1fr; gap: 48px; align-items: end; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--band-muted); font-weight: 600; }
+  .hero h1 { font-size: 34px; line-height: 1.18; margin: 10px 0 14px; font-weight: 700; letter-spacing: -0.02em; }
+  .hero p { font-size: 16px; color: var(--band-ink); margin: 0; }
+  .answer { border-left: 2px solid rgba(255,255,255,0.18); padding-left: 24px; }
+  .answer .k { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--band-muted); font-weight: 600; }
+  .answer .hero-num { font-size: 64px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; margin: 6px 0 8px; }
+  .answer .cap { color: var(--band-ink); font-size: 14px; }
+  .answer .cap b { color: #fff; }
+  .stamp { margin-top: 20px; font-size: 12px; color: var(--band-muted); }
   .stamp b { color: #fff; font-weight: 600; }
 
-  /* tiles overlap the band */
-  .tiles { display: grid; grid-template-columns: repeat(3, 1fr) 1.15fr; gap: 16px; margin-top: -64px; }
-  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
-          box-shadow: 0 6px 18px rgba(15,39,68,0.06); }
-  .tile .label { font-size: 12px; color: var(--ink2); font-weight: 500; display: flex; align-items: center; gap: 8px; }
-  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
-  .tile .value { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; margin: 4px 0 2px; }
-  .tile .delta { font-size: 12px; color: var(--ink2); }
+  /* today strip, overlapping the band */
+  .today { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: -60px; align-items: stretch; }
+  .tile, .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .tile { padding: 14px 16px; box-shadow: 0 6px 18px rgba(15,39,68,0.06); display: flex; flex-direction: column; }
+  .tile .label { font-size: 12px; color: var(--ink2); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+  .tile .row { display: flex; align-items: end; justify-content: space-between; gap: 8px; margin: 4px 0 2px; }
+  .tile .value { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; }
+  .tile .delta { font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
   .tile .delta b { color: var(--ink); font-weight: 600; }
-  .tile.read { grid-column: span 1; }
-  .tip { position: relative; display: inline-flex; width: 15px; height: 15px; border-radius: 50%; border: 1px solid #c3ccd8;
+  .tile.read { grid-column: 1 / -1; box-shadow: none; }
+  .tile.read ul { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink); display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 28px; }
+  .tile.read li { padding: 4px 0 4px 14px; position: relative; }
+  .tile.read li::before { content: ""; position: absolute; left: 0; top: 11px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .tip { position: relative; display: inline-flex; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--axis);
          color: var(--muted); font-size: 10px; align-items: center; justify-content: center; cursor: help; margin-left: auto; }
-  .tip:hover::after { content: attr(data-tip); position: absolute; right: 0; top: 20px; width: 240px; background: var(--charcoal);
-         color: #fff; font-size: 12px; font-weight: 400; line-height: 1.45; padding: 8px 10px; border-radius: 6px; z-index: 30; }
+  .tip:hover::after, .tip:focus::after { content: attr(data-tip); position: absolute; right: 0; top: 20px; width: 240px; background: var(--ink);
+         color: var(--surface); font-size: 12px; font-weight: 400; line-height: 1.45; padding: 8px 10px; border-radius: 6px; z-index: 30; }
 
-  .summary { display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; margin-top: 16px; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
-  .card h3 { font-size: 14px; font-weight: 600; margin: 0 0 2px; display: flex; align-items: center; gap: 8px; }
-  .card .note { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
-  .readlist { margin: 10px 0 0; padding: 0; list-style: none; }
-  .readlist li { padding: 7px 0 7px 18px; border-bottom: 1px solid var(--rule); position: relative; color: var(--ink); }
-  .readlist li:last-child { border-bottom: 0; }
-  .readlist li::before { content: ""; position: absolute; left: 0; top: 15px; width: 6px; height: 6px; border-radius: 2px; background: var(--navy); }
-  .finding { padding: 9px 0; border-bottom: 1px solid var(--rule); }
-  .finding:last-child { border-bottom: 0; }
-  .finding b { display: block; font-size: 13px; color: var(--ink); }
-  .finding span { font-size: 13px; color: var(--ink2); }
-
-  section { margin-top: 52px; }
-  .section-head { display: flex; align-items: baseline; gap: 12px; }
-  .section-head .idx { font-size: 12px; font-weight: 700; color: var(--navy); background: #e6eef8; padding: 2px 7px; border-radius: 5px; }
-  h2 { font-size: 21px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
-  .sub { color: var(--ink2); margin: 6px 0 18px; max-width: 900px; }
-  .grid-2 { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; }
-  .grid-2e { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-  .stack > * + * { margin-top: 16px; }
+  /* sections */
+  section { margin-top: 72px; }
+  .kicker { font-size: 12px; font-weight: 650; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+  h2 { font-size: 25px; line-height: 1.25; margin: 6px 0 0; font-weight: 700; letter-spacing: -0.015em; max-width: 860px; }
+  .sub { color: var(--ink2); margin: 10px 0 20px; max-width: 780px; }
+  .card { padding: 20px 22px; }
+  .card + .card { margin-top: 14px; }
+  .card h3 { font-size: 15px; font-weight: 650; margin: 0 0 2px; display: flex; align-items: center; gap: 8px; }
+  .note { font-size: 13px; color: var(--muted); margin: 2px 0 6px; }
+  .takeaway { font-size: 14px; color: var(--ink); margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--grid); }
+  .takeaway b { font-weight: 650; }
+  .grid-2 { display: grid; grid-template-columns: 1.65fr 1fr; gap: 14px; }
+  .grid-2e { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .grid-2 > .card, .grid-2e > .card, .grid-4 > .card { margin-top: 0; }
+  .divider { margin: 88px 0 0; padding-top: 28px; border-top: 1px solid var(--grid); }
+  .narrow-only { display: none; }
+  .divider .kicker { color: var(--muted); }
 
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
   th { text-align: right; font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase;
-       letter-spacing: 0.05em; padding: 8px; border-bottom: 1px solid var(--border); }
-  td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+       letter-spacing: 0.05em; padding: 8px; border-bottom: 1px solid var(--grid); }
+  td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--grid); }
   th.l, td.l { text-align: left; }
   tr:last-child td { border-bottom: 0; }
   td .se { color: var(--muted); font-size: 11px; margin-left: 3px; }
-  tr.group td { font-weight: 600; background: #f6f8fb; text-align: left; font-size: 12px; color: var(--ink); }
+  tr.group td { font-weight: 600; text-align: left; font-size: 12px; color: var(--ink); padding-top: 14px; }
   td.strong { font-weight: 600; }
+  .sig { font-weight: 650; color: var(--ink); } .insig { color: var(--muted); }
+  .tstat { display: block; font-size: 11px; color: var(--muted); }
 
-  .tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; padding: 3px; background: #eef2f7; }
+  details.tv { margin-top: 12px; border-top: 1px solid var(--grid); padding-top: 10px; }
+  details.tv summary { cursor: pointer; font-size: 13px; color: var(--ink2); font-weight: 500; list-style: none; }
+  details.tv summary::-webkit-details-marker { display: none; }
+  details.tv summary::before { content: "+"; display: inline-block; width: 16px; color: var(--muted); }
+  details.tv[open] summary::before { content: "\2212"; }
+  details.tv > *:not(summary) { margin-top: 10px; }
+
+  .tabs { display: inline-flex; border: 1px solid var(--grid); border-radius: 8px; padding: 3px; background: var(--page); }
   .tabs button { border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink2);
-                 padding: 6px 14px; border-radius: 6px; cursor: pointer; }
-  .tabs button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(15,39,68,0.12); }
-  .panel { display: none; } .panel.on { display: block; }
+                 padding: 6px 13px; border-radius: 6px; cursor: pointer; }
+  .tabs button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(15,39,68,0.14); }
+  .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  select, input[type=number] { font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--grid); border-radius: 6px;
+                               background: var(--surface); color: var(--ink); }
+  select:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn-sm { font: inherit; font-size: 13px; border: 1px solid var(--grid); background: var(--surface); border-radius: 6px; padding: 7px 11px;
+            cursor: pointer; color: var(--ink2); }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm:disabled { opacity: 0.4; cursor: default; }
+  .hint { font-size: 12px; color: var(--muted); }
 
   /* meeting explorer */
-  .explorer-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
-  select, input[type=number] { font: inherit; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--ink); }
-  select:focus, input:focus { outline: 2px solid #b9d4f1; border-color: var(--sky); }
-  .btn-sm { font: inherit; font-size: 13px; border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 7px 11px;
-            cursor: pointer; color: var(--ink2); }
-  .btn-sm:hover { border-color: var(--navy); color: var(--navy); }
   .verdict .when { font-size: 12px; color: var(--muted); }
   .verdict .what { font-size: 20px; font-weight: 650; margin: 2px 0 8px; letter-spacing: -0.01em; }
-  .verdict p { color: var(--ink2); margin: 0 0 12px; }
-  .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: #e6eef8; color: var(--navy); }
-  .pill.info { background: #e3f1fc; color: #1c5f97; }
-  .hint { font-size: 12px; color: var(--muted); }
+  .verdict p { color: var(--ink2); margin: 0 0 12px; font-size: 14px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+          background: var(--accent-band); color: var(--ink); vertical-align: middle; }
+
+  /* scorecard chips: status colour always with an icon and a word */
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .chip { border: 1px solid var(--grid); border-radius: 10px; padding: 8px 12px; min-width: 118px; }
+  .chip .d { font-size: 12px; color: var(--muted); }
+  .chip .r { font-size: 14px; font-weight: 650; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .chip .ic { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+              font-size: 11px; color: #fff; flex: none; }
+  .chip.hit .ic { background: var(--good); } .chip.hit .r { color: var(--good-text); }
+  .chip.miss .ic { background: var(--bad); } .chip.miss .r { color: var(--bad); }
+  .chip.open .ic, .chip.upcoming .ic { background: none; border: 1.5px solid var(--muted); color: var(--muted); }
+  .chip.open .r, .chip.upcoming .r { color: var(--ink2); font-weight: 500; }
+  .chip.call { border-color: var(--accent); }
+  .tally { font-size: 14px; margin: 8px 0 0; }
+  .tally b { font-weight: 650; }
 
   .scen-controls { display: flex; gap: 18px; align-items: end; flex-wrap: wrap; margin: 12px 0 14px; }
   .field label { display: block; font-size: 12px; color: var(--ink2); font-weight: 500; margin-bottom: 4px; }
   .field input { width: 110px; }
   .presets button { margin-right: 6px; }
-  #scen-out td.hl, #scen-out th.hl { background: #f2f6fb; }
-
-  table.robust td { vertical-align: top; }
-  .sig { font-weight: 700; color: var(--ink); } .insig { color: var(--muted); }
-  .tstat { display: block; font-size: 11px; color: var(--muted); }
-  .stat .big { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; color: var(--navy); }
-  .stat .cap { font-size: 12px; color: var(--ink2); }
+  #scen-out td.hl, #scen-out th.hl { background: var(--accent-band); }
+  .stat .big { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; color: var(--ink); }
+  .stat .cap { font-size: 13px; color: var(--ink2); }
   dl.gloss { display: grid; grid-template-columns: 220px 1fr; margin: 0; }
-  dl.gloss dt { font-weight: 600; padding: 10px 0; border-bottom: 1px solid var(--rule); }
-  dl.gloss dd { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--rule); color: var(--ink2); }
+  dl.gloss dt { font-weight: 600; padding: 10px 0; border-bottom: 1px solid var(--grid); }
+  dl.gloss dd { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--grid); color: var(--ink2); }
 
-  footer { margin-top: 64px; background: var(--band); color: #c9d6e6; }
+  footer { margin-top: 80px; background: var(--band); color: #c9d6e6; }
   footer .wrap { padding-top: 26px; padding-bottom: 32px; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
   footer h4 { font-size: 12px; margin: 0 0 6px; color: #fff; }
   footer a { color: #fff; }
 
   @media (max-width: 980px) {
-    .tiles, .summary { grid-template-columns: 1fr 1fr; }
-    .grid-2, .grid-2e, .grid-3, .grid-4, footer .wrap { grid-template-columns: 1fr; }
+    .hero, .today, .grid-2, .grid-2e, .grid-4, footer .wrap, .tile.read ul { grid-template-columns: 1fr; }
+    .today { margin-top: -60px; } .answer { border-left: 0; padding-left: 0; }
     dl.gloss { grid-template-columns: 1fr; } dl.gloss dt { border-bottom: 0; padding-bottom: 0; }
-    .nav a:not(.btn) { display: none; }
+    .nav a:not(.keep) { display: none; }
+  }
+  @media (max-width: 720px) {
+    .wide-only { display: none; } .narrow-only { display: block; overflow-x: auto; }
+    .hero h1 { font-size: 28px; } .answer .hero-num { font-size: 52px; } h2 { font-size: 22px; }
   }
 </style>
 </head>
@@ -141,212 +178,272 @@
 
 <div class="band">
   <div class="topbar"><div class="wrap">
-    <div class="brand">Fed Shocks and the Term Premium<span>US Treasuries</span></div>
-    <div class="nav">
-      <a href="#curve">Curve</a><a href="#fomc">FOMC</a><a href="#transmission">Transmission</a>
-      <a href="#forwards">Real vs inflation</a><a href="#robustness">Robustness</a><a href="#scenario">Scenarios</a><a href="#validation">Validation</a><a href="#glossary">Glossary</a>
-      <a class="btn" href="{{ repo_url }}">GitHub</a>
-    </div>
+    <div class="brand">Fed guidance and the term premium</div>
+    <nav class="nav">
+      <a href="#finding">The finding</a><a href="#robust">Does it hold?</a><a href="#single">One meeting</a>
+      <a href="#supply">Supply</a><a href="#explore">Explore</a><a href="#curve">Curve today</a>
+      <button class="btn" id="theme-btn" type="button" aria-label="Switch light or dark mode">Dark</button>
+      <a class="btn keep" href="{{ repo_url }}">GitHub</a>
+    </nav>
   </div></div>
   <div class="wrap hero">
-    <div class="eyebrow">Rates research dashboard</div>
-    <h1>When the Fed surprises markets, does the 10-year move on rate expectations or on the term premium?</h1>
-    <p>Every Treasury yield is split each day into the short rate the market expects and the term premium it demands for
-    duration risk. FOMC surprises, measured from futures in a 30-minute window around each statement, are traced through both.</p>
-    <div class="stamp">Curve data to <b>{{ last_date }}</b> &nbsp;·&nbsp; {{ n_meetings }} FOMC announcements since 1990 &nbsp;·&nbsp; Updated {{ updated }}</div>
+    <div>
+      <div class="eyebrow">Rates research · rebuilt every weekday</div>
+      <h1>When the Fed surprises the market on guidance, what happens to the long end?</h1>
+      <p>Every Treasury yield splits into the short rate the market expects and a term premium for holding duration.
+      Fed surprises are measured from futures in the 30 minutes around each statement, then followed through both pieces
+      for three months.</p>
+      <div class="stamp">Curve data to <b>{{ last_date }}</b> &nbsp;·&nbsp; {{ n_meetings }} FOMC announcements since 1990 &nbsp;·&nbsp; Updated {{ updated }}</div>
+    </div>
+    <div class="answer">
+      <div class="k">The answer, since 2008</div>
+      <div class="hero-num">{{ "%+.0f"|format(hl.h20) }}bp</div>
+      <div class="cap">of 10-year term premium, 20 trading days after a 10bp guidance surprise. On the day it barely
+      moves (<b>{{ "%+.1f"|format(hl.h0) }}bp</b>). Before 2008 the same surprise did nothing (<b>{{ "%+.1f"|format(hl.pre20) }}bp</b>).</div>
+    </div>
   </div>
 </div>
 
 <main class="wrap">
-  <div class="tiles">
+  <div class="today">
     {% for t in tiles %}
     <div class="tile">
-      <div class="label"><span class="swatch" style="background:{{ t.colour }}"></span>{{ t.label }}<span class="tip" data-tip="{{ t.tip }}">?</span></div>
-      <div class="value num">{{ t.value }}</div>
-      <div class="delta num"><b>{{ "%+.1f"|format(t.d1) }}bp</b> on the day &nbsp; <b>{{ "%+.1f"|format(t.d21) }}bp</b> 1 month</div>
+      <div class="label">{{ t.label }}<span class="tip" tabindex="0" data-tip="{{ t.tip }}">?</span></div>
+      <div class="row"><div class="value">{{ t.value }}</div>{{ t.spark|safe }}</div>
+      <div class="delta"><b>{{ "%+.1f"|format(t.d1) }}bp</b> day &nbsp;·&nbsp; <b>{{ "%+.1f"|format(t.d21) }}bp</b> month</div>
     </div>
     {% endfor %}
     <div class="tile">
-      <div class="label">Term premium share of the 10y<span class="tip" data-tip="Term premium divided by the 10y yield. Negative when investors accept less than the expected path of short rates.">?</span></div>
-      <div class="value num">{{ "%.0f"|format(tp_share) }}%</div>
-      <div class="delta">of the yield is compensation for duration risk</div>
+      <div class="label">Term premium share of the 10y<span class="tip" tabindex="0" data-tip="Term premium divided by the 10y yield. Negative when investors accept less than the expected path of short rates.">?</span></div>
+      <div class="row"><div class="value">{{ "%.0f"|format(tp_share) }}%</div></div>
+      <div class="delta">of the yield is pay for holding duration</div>
+    </div>
+    <div class="tile read">
+      <div class="label">Today's read</div>
+      <ul>{% for s in read[:3] %}<li>{{ s }}</li>{% endfor %}</ul>
     </div>
   </div>
 
-  <div class="summary">
+  <section id="finding">
+    <div class="kicker">01 · The finding</div>
+    <h2>Guidance surprises turn into term premium, but only after the meeting, and only since 2008</h2>
+    <p class="sub">A guidance surprise is how much the market repriced the policy rate a year out in the half hour around the
+    statement, holding today's decision fixed. Each line is the average move in the 10-year from the close before the meeting,
+    per 10bp of surprise. On the day, guidance moves expected rates, as it should. Over the next month the term premium takes over.</p>
     <div class="card">
-      <h3>Today's read</h3>
-      <ul class="readlist">{% for s in read %}<li>{{ s }}</li>{% endfor %}</ul>
-    </div>
-    <div class="card">
-      <h3>Main findings</h3><p class="note">From 334 FOMC announcements since 1990, per 10bp shock</p>
-      {% for title, text in findings %}<div class="finding"><b>{{ title }}</b><span>{{ text }}</span></div>{% endfor %}
-    </div>
-  </div>
-
-  <section id="curve">
-    <div class="section-head"><span class="idx">01</span><h2>Curve decomposition</h2></div>
-    <p class="sub">Each fitted yield = expected short rates + term premium, from the Adrian, Crump and Moench model, re-estimated on every update.
-    Dotted lines mark episodes worth knowing.</p>
-    <div class="stack">
-      <div class="card"><h3>10-year yield and its two components</h3>{{ fig_history|safe }}</div>
-      <div class="grid-2">
-        <div class="card"><h3>The curve today<span class="tip" data-tip="Shaded gap between the yield curve and the expected-rate curve is the term premium at each maturity.">?</span></h3>
-          <p class="note">Yield vs expected short rates by maturity; the shaded gap is the term premium</p>{{ fig_curve|safe }}</div>
-        <div class="card">
-          <h3>Across the curve</h3><p class="note">Levels in %, changes in bp</p>
-          <table>
-            <tr><th class="l">Tenor</th><th>Yield</th><th>Expected</th><th>Term prem.</th><th>TP 1m</th></tr>
-            {% for r in curve %}
-            <tr><td class="l strong">{{ r.tenor }}</td><td>{{ "%.2f"|format(r.y) }}</td><td>{{ "%.2f"|format(r.rn) }}</td>
-            <td>{{ "%.2f"|format(r.tp) }}</td><td>{{ "%+.1f"|format(r.tp_d21) }}</td></tr>
-            {% endfor %}
-          </table>
-        </div>
-      </div>
+      {{ fig_hero|safe }}
+      <p class="takeaway">Since 2008 the term premium response peaks around day {{ hl.peak_h }} and has faded to
+      <b>{{ "%+.0f"|format(hl.h60) }}bp</b> by day 60: a month-long drift, not a permanent shift. Shaded: 90% interval.</p>
+      <details class="tv"><summary>Table view</summary>{{ hero_table|safe }}</details>
     </div>
   </section>
 
-  <section id="fomc">
-    <div class="section-head"><span class="idx">02</span><h2>FOMC meeting explorer</h2></div>
-    <p class="sub">A hawkish surprise that sends stocks down is a <b>monetary policy shock</b>. A hawkish surprise that sends stocks up is an
-    <b>information shock</b>: the market reads the Fed as more upbeat on the economy. Pick any meeting, or click a bar in the timeline below.</p>
-    <div class="stack">
-      <div class="card">
-        <div class="explorer-bar">
-          <button class="btn-sm" id="m-prev">&larr; Earlier</button>
-          <select id="m-select" aria-label="FOMC meeting"></select>
-          <button class="btn-sm" id="m-next">Later &rarr;</button>
-          <span class="hint">Latest meeting shown by default</span>
-        </div>
-        <div class="grid-2e">
-          <div class="verdict">
-            <div class="when" id="m-when"></div>
-            <div class="what" id="m-what"></div>
-            <p id="m-text"></p>
-            <table id="m-table"></table>
-          </div>
-          <div><h3 style="font-size:14px;margin:0">What happened next</h3>
-            <p class="note">Cumulative change since the close before the meeting, bp</p>
-            <div id="m-chart"></div></div>
-        </div>
-      </div>
-      <div class="card"><h3>Every announcement since 1994</h3><p class="note">Shocks in bp of 1-year-ahead rates. Click a bar to open that meeting above.</p>{{ fig_shocks|safe }}</div>
-      <div class="card"><h3>What moved the 10y on recent FOMC days</h3><p class="note">Close-to-close change on the announcement day, split into expected rates and term premium</p>{{ fig_split|safe }}</div>
-    </div>
-  </section>
-
-  <section id="transmission">
-    <div class="section-head"><span class="idx">03</span><h2>Transmission</h2></div>
-    <p class="sub">How a 10bp shock feeds through over the following three months. Each point is the average change from the close before the
-    meeting to that many trading days after, across all meetings since 1990; shaded bands are 90% intervals. Lines above zero mean the series rose.</p>
+  {% if fig_real %}
+  <section id="real">
+    <div class="kicker">02 · Where it lands</div>
+    <h2>It lands in real rates, far out the curve, not in inflation compensation</h2>
+    <p class="sub">The 5y5y forward is the five-year rate starting five years from now, beyond the stretch where the Fed sets the
+    path directly. TIPS split it into a real rate and breakeven inflation. Response to a 10bp guidance surprise, meetings since 2008.</p>
     <div class="card">
-      <div class="tabs" role="tablist">
-        <button class="on" data-panel="p-jk">Policy vs information</button>
-        <button data-panel="p-gss">Target vs path</button>
-      </div>
-      <div id="p-jk" class="panel on">{{ fig_irf_jk|safe }}</div>
-      <div id="p-gss" class="panel">{{ fig_irf_gss|safe }}</div>
+      {{ fig_real|safe }}
+      {% if fwd.fwd_tp %}<p class="takeaway">The term structure model splits the same forward the other way: at 20 days, expected
+      rates <b>{{ "%+.1f"|format(fwd.fwd_expected.h20) }}bp</b> and term premium <b>{{ "%+.1f"|format(fwd.fwd_tp.h20) }}bp</b>.
+      The market isn't pricing a different Fed path a decade out; it wants more compensation to hold it.</p>{% endif %}
+      <details class="tv"><summary>Table view</summary>{{ real_table|safe }}</details>
     </div>
-    <div class="card" style="margin-top:16px">
-      <h3>Announcement-day effect on the 10y, by period</h3>
-      <p class="note">bp per 10bp shock, standard errors in brackets. Compare pre-2008 with the QE and post-QE era.</p>
-      <table>
-        <tr><th class="l">Shock</th><th>10y yield</th><th>Expected rates</th><th>Term premium</th></tr>
-        {% for r in regime_rows %}
-        {% if loop.first or r.regime != regime_rows[loop.index0 - 1].regime %}<tr class="group"><td colspan="4">{{ r.regime }}</td></tr>{% endif %}
-        <tr><td class="l">{{ r.shock }}</td>
-        {% for o in ["d_yield", "d_expectations", "d_term_premium"] %}<td>{{ "%+.2f"|format(r[o][0]) }}<span class="se">({{ "%.2f"|format(r[o][1]) }})</span></td>{% endfor %}</tr>
-        {% endfor %}
-      </table>
-    </div>
-  </section>
-
-  {% if fig_fwd %}
-  <section id="forwards">
-    <div class="section-head"><span class="idx">04</span><h2>Where the shock lands: far future, real or inflation?</h2></div>
-    <p class="sub">The <b>5y5y forward</b> is the 5-year rate starting 5 years from now. It removes the next five years, where the Fed
-    sets the path directly, so a move here is about the far future. Its move is split two ways: expected rates vs term premium
-    (from the model) and real rate vs breakeven inflation (from TIPS). Response per 10bp shock; whiskers are 90% intervals.
-    TIPS-based pieces start in 2003.</p>
-    <div class="card">{{ fig_fwd|safe }}</div>
   </section>
   {% endif %}
 
-  {% if robust %}
-  <section id="robustness">
-    <div class="section-head"><span class="idx">05</span><h2>Do the results hold up?</h2></div>
-    <p class="sub">Each headline result re-estimated on different sets of meetings. Bold numbers are statistically significant
-    (90% level); the number underneath is the t-statistic. A result that is bold across the row is robust; one that is bold
-    in only one period belongs to that period. Balance sheet announcements are a hand-coded list of FOMC statements with
-    asset purchase, reinvestment, taper or runoff news.</p>
-    {% for tbl in robust %}
-    <div class="card" style="margin-bottom:16px">
-      <h3>{{ tbl.title }}</h3>
-      <table class="robust">
-        <tr><th class="l">Result, per 10bp shock (bp)</th>{% for c in tbl.checks %}<th>{{ c }}</th>{% endfor %}</tr>
-        {% for r in tbl.rows %}
-        <tr><td class="l">{{ r.result }}</td>
-        {% for c in r.cells %}<td>{% if c %}<span class="{{ 'sig' if c.t|abs > 1.645 else 'insig' }}">{{ "%+.1f"|format(c.coef) }}</span><span class="tstat">t = {{ "%.1f"|format(c.t) }}</span>{% endif %}</td>{% endfor %}</tr>
-        {% endfor %}
-      </table>
-    </div>
-    {% endfor %}
-    {% if single %}
+  {% if fig_forest %}
+  <section id="robust">
+    <div class="kicker">03 · Does it hold?</div>
+    <h2>It survives the obvious objections</h2>
+    <p class="sub">The same 20-day result, re-estimated on different sets of meetings. The worry behind each row: QE announcements
+    compress term premia by design; 2020 was extreme; emergency meetings are different; some "hawkish" surprises are really good
+    news about the economy; the model's persistence is biased in small samples. Dots are estimates, whiskers 90% intervals; the
+    faint blue line marks the headline.</p>
     <div class="card">
-      <h3>Does it show up at a single meeting?</h3>
-      <p class="note">Hit rate in the 20 trading days after each FOMC meeting since 2008, against the same test over 20-day windows
-      with no meeting inside them. The 2y move on the meeting day (FRED DGS2) stands in for the surprise. Control-window
-      uncertainty from a moving-block bootstrap; p-values two-sided.</p>
-      <table>
-        <tr><th class="l">Test</th><th>Meetings</th><th>After FOMC</th><th>No-meeting windows</th><th>p-value</th></tr>
-        {% for r in single %}
-        <tr><td class="l">{{ r.test }}</td><td>{{ r.meetings }}</td><td><span class="{{ 'sig' if r.p_two_sided < 0.1 else 'insig' }}">{{ "%.0f"|format(100 * r.fomc_rate) }}%</span></td>
-        <td>{{ "%.0f"|format(100 * r.control_rate) }}%</td><td>{{ "%.3f"|format(r.p_two_sided) }}</td></tr>
+      <div class="wide-only">{{ fig_forest|safe }}</div>
+      <div class="narrow-only">{{ forest_table|safe }}</div>
+      <details class="tv wide-only"><summary>Table view</summary>{{ forest_table|safe }}</details>
+      {% if robust %}
+      <details class="tv"><summary>Every check, every result</summary>
+        <p class="note">Bold = significant at the 90% level; t-statistic underneath.</p>
+        {% for tbl in robust %}
+        <h3 style="margin-top:14px">{{ tbl.title }}</h3>
+        <table>
+          <tr><th class="l">Result, bp per 10bp shock</th>{% for c in tbl.checks %}<th>{{ c }}</th>{% endfor %}</tr>
+          {% for r in tbl.rows %}
+          <tr><td class="l">{{ r.result }}</td>
+          {% for c in r.cells %}<td>{% if c %}<span class="{{ 'sig' if c.t|abs > 1.645 else 'insig' }}">{{ "%+.1f"|format(c.coef) }}</span><span class="tstat">t {{ "%.1f"|format(c.t) }}</span>{% endif %}</td>{% endfor %}</tr>
+          {% endfor %}
+        </table>
         {% endfor %}
-      </table>
+      </details>
+      {% endif %}
     </div>
-    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if fig_hits %}
+  <section id="single">
+    <div class="kicker">04 · One meeting at a time</div>
+    <h2>At a single meeting it's a tilt, not a sure thing</h2>
+    <p class="sub">The call: over the 20 trading days after a meeting, the real 5y5y forward moves the same way the 2-year moved on
+    the day. How often has that been right since 2008, against the same test in 20-day windows with no meeting in them? The gap
+    between the dots is the Fed's contribution. "Real beats breakeven" is right as often without a meeting, which is why it isn't the call.</p>
+    <div class="card">
+      <div class="wide-only">{{ fig_hits|safe }}</div>
+      <div class="narrow-only">{{ hits_table|safe }}</div>
+      <details class="tv"><summary>Table view</summary>{{ hits_table|safe }}
+        <p class="note">Neighbouring control windows share most of their days, so their uncertainty comes from a moving-block
+        bootstrap (21-day blocks); p-values are two-sided.</p></details>
+    </div>
     {% if card %}
     <div class="card" id="scorecard">
-      <h3>Scorecard: the call, meeting by meeting</h3>
-      <p class="note">Every FOMC decision since Warsh became chair, graded on the rule published in Research Notes #1:
-      over the 20 trading days from the close before the meeting, the real 5y5y forward (2 x DFII10 - DFII5) moves
-      the same way the 2y (DGS2) moved on the meeting day. Unchanged at two decimals, or no 2y move, counts as a miss.
-      Updates itself every weekday.{% if card_ref %} Backtest since 2008, meetings with a 2y move of 3bp or more:
-      {{ "%.0f"|format(100 * card_ref.fomc) }}% hits against {{ "%.0f"|format(100 * card_ref.control) }}% in
-      windows with no meeting.{% endif %}</p>
-      {% if card_tally %}
-      <p class="note"><b>So far: {{ card_tally.hits }} of {{ card_tally.scored }}</b>{% if card_tally.scored_big != card_tally.scored %} ({{ card_tally.hits_big }} of {{ card_tally.scored_big }} with a 2y move of 3bp or more){% endif %}.
-      Far too few meetings to tell the backtest rate from the no-meeting rate; this is a running check, not a verdict.</p>
-      {% endif %}
-      <table>
-        <tr><th class="l">Meeting</th><th>2y on the day</th><th>Real 5y5y, 20 days</th><th>Window closes</th><th class="l">Result</th></tr>
+      <h3>Scorecard: the call at every meeting since Warsh became chair</h3>
+      <p class="note">Warsh dropped forward guidance from the statement in June 2026. Each meeting is graded once its 20-day window
+      closes. Unchanged at two decimals, or no 2-year move on the day, counts as a miss.</p>
+      <div class="chips">
         {% for r in card %}
-        <tr><td class="l">{{ r.meeting }}{% if r.note %} <span class="tstat">{{ r.note }}</span>{% endif %}</td>
-        <td>{% if r.d2y_bp != "" %}{{ "%+.0f"|format(r.d2y_bp|float) }}bp{% if r.big_move in ("False", False) %} <span class="tstat">under 3bp</span>{% endif %}{% endif %}</td>
-        <td>{% if r.real_bp != "" %}{{ "%+.0f"|format(r.real_bp|float) }}bp{% endif %}</td>
-        <td>{{ r.window_end }}</td>
-        <td class="l"><span class="{{ 'sig' if r.result == 'hit' else 'insig' }}">{{ r.result }}</span></td></tr>
+        {% set kind = 'hit' if r.result == 'hit' else ('miss' if r.result.startswith('miss') else ('open' if r.result.startswith('open') else 'upcoming')) %}
+        <div class="chip {{ kind }}{{ ' call' if r.note else '' }}">
+          <div class="d">{{ r.meeting }}{% if r.note %} · the call{% endif %}</div>
+          <div class="r"><span class="ic" aria-hidden="true">{{ {'hit': '&#10003;', 'miss': '&#10005;', 'open': '&hellip;', 'upcoming': ''}[kind]|safe }}</span>{{ r.result }}</div>
+        </div>
         {% endfor %}
-      </table>
+      </div>
+      {% if card_tally %}<p class="tally"><b>{{ card_tally.hits }} of {{ card_tally.scored }}</b> so far{% if card_tally.scored_big != card_tally.scored %} ({{ card_tally.hits_big }} of {{ card_tally.scored_big }} with a 2-year move of 3bp or more){% endif %}{% if card_ref %}, against {{ "%.0f"|format(100 * card_ref.fomc) }}% in the backtest and {{ "%.0f"|format(100 * card_ref.control) }}% with no meeting{% endif %}.
+      Far too few meetings to tell those apart: a running check, not a verdict.</p>{% endif %}
+      <details class="tv"><summary>Table view</summary>
+        <table>
+          <tr><th class="l">Meeting</th><th>2y on the day</th><th>Real 5y5y, 20 days</th><th>Window closes</th><th class="l">Result</th></tr>
+          {% for r in card %}
+          <tr><td class="l">{{ r.meeting }}{% if r.note %} <span class="tstat">{{ r.note }}</span>{% endif %}</td>
+          <td>{% if r.d2y_bp != "" %}{{ "%+.0f"|format(r.d2y_bp|float) }}bp{% if r.big_move in ("False", False) %} <span class="tstat">under 3bp</span>{% endif %}{% endif %}</td>
+          <td>{% if r.real_bp != "" %}{{ "%+.0f"|format(r.real_bp|float) }}bp{% endif %}</td>
+          <td>{{ r.window_end }}</td><td class="l">{{ r.result }}</td></tr>
+          {% endfor %}
+        </table>
+      </details>
     </div>
     {% endif %}
   </section>
   {% endif %}
 
-  <section id="scenario">
-    <div class="section-head"><span class="idx">06</span><h2>Scenario tool</h2></div>
-    <p class="sub">Size a hypothetical surprise and read off the historical average response. Useful before a meeting: what has a hawkish dot plot
-    (a path shock) or a surprise cut (a target shock) typically done to the curve? Linear in the shock; point estimates only.</p>
+  {% if fig_supply or fig_refunding %}
+  <section id="supply">
+    <div class="kicker">05 · Why it happens</div>
+    <h2>{% if refunding %}{{ refunding.headline }}{% else %}Is it Treasury supply? The monthly data can't say{% endif %}</h2>
+    <p class="sub">One explanation for the post-2008 effect is supply: the more duration private investors have to hold, the harder
+    a change in the rate outlook pushes on the premium they want. Testing that needs supply news that arrives on a known day.
+    The Treasury's quarterly refunding statement, which announces the sizes of the 3-, 10- and 30-year auctions at 8:30am, is that news.</p>
+    {% if fig_refunding %}
     <div class="card">
-      <div class="tabs" id="scen-tabs">
-        <button class="on" data-set="jk">Policy vs information</button>
-        <button data-set="gss">Target vs path</button>
+      <h3>Refunding statements: announced coupon supply vs the 10-year on the day</h3>
+      <p class="note">One dot per quarterly refunding statement since 2009. Hollow: an FOMC announcement within a day, left out of the fit.
+      Most quarters the Treasury keeps sizes unchanged, so many dots sit at zero.</p>
+      {{ fig_refunding|safe }}
+      {% if refunding %}<p class="takeaway">{{ refunding.takeaway|safe }}</p>
+      <details class="tv"><summary>Table view</summary>{{ refunding.table|safe }}</details>{% endif %}
+    </div>
+    {% endif %}
+    {% if fig_supply %}
+    <div class="card">
+      <h3>The backdrop: how much duration the private market holds</h3>
+      <p class="note">Every marketable Treasury outstanding minus the Fed's holding of that exact security, weighted by duration, month by month since mid-2003.</p>
+      {{ fig_supply|safe }}
+      <p class="takeaway">Private duration supply has risen almost every year since 2008, so it moves with time itself (correlation
+      0.97 across post-2008 meetings). Month-by-month supply can't separate "more supply" from "later in the sample", so whether
+      a bigger stock of duration makes guidance hit harder is still open. The guidance effect has also been larger in 2008 to 2015
+      than since 2016, while supply kept rising, which points away from the simplest supply story.</p>
+      <details class="tv"><summary>Table view</summary>{{ supply_table|safe }}</details>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <div class="divider"><div class="kicker">Tools and reference</div></div>
+
+  <section id="explore" style="margin-top:28px">
+    <div class="kicker">06 · Explore</div>
+    <h2>Any meeting since 1994</h2>
+    <p class="sub">A hawkish surprise that sends stocks down is a <b>monetary policy shock</b>; one that sends stocks up is an
+    <b>information shock</b>, the market reading the Fed as more upbeat on the economy. Pick a meeting, or click a bar in the timeline.</p>
+    <div class="card">
+      <div class="controls">
+        <button class="btn-sm" id="m-prev" type="button">&larr; Earlier</button>
+        <select id="m-select" aria-label="FOMC meeting"></select>
+        <button class="btn-sm" id="m-next" type="button">Later &rarr;</button>
+        <span class="hint">Latest meeting shown by default</span>
       </div>
+      <div class="grid-2e">
+        <div class="verdict"><div class="when" id="m-when"></div><div class="what" id="m-what"></div>
+          <p id="m-text"></p><table id="m-table"></table></div>
+        <div><h3>What happened next</h3><p class="note">Change since the close before the meeting, bp</p><div id="m-chart" data-dyn="1"></div></div>
+      </div>
+    </div>
+    <div class="card"><h3>Every announcement since 1994</h3><p class="note">Surprise in 1-year-ahead rates, bp, split into its policy and information parts. Click a bar to open that meeting.</p>{{ fig_shocks|safe }}</div>
+    <div class="card"><h3>What moved the 10y on recent FOMC days</h3><p class="note">Close-to-close change on the announcement day, split into expected rates and term premium; the dot is the total.</p>{{ fig_split|safe }}</div>
+  </section>
+
+  <section id="responses">
+    <div class="kicker">07 · Every response</div>
+    <h2>Every series, every kind of shock, every era</h2>
+    <p class="sub">The average response of each series to a 10bp shock, from the day of the meeting to three months later.
+    Pick the series, the pair of shocks and the period. Shaded: 90% intervals.</p>
+    <div class="card">
+      <div class="controls">
+        <select id="r-outcome" aria-label="Series"></select>
+        <div class="tabs" id="r-pair"><button class="on" data-v="gss" type="button">Target vs path</button><button data-v="jk" type="button">Policy vs information</button></div>
+        <div class="tabs" id="r-era"><button data-v="1990-2007" type="button">1990-2007</button><button class="on" data-v="2008-present" type="button">2008 on</button><button data-v="all" type="button">All</button></div>
+      </div>
+      <div id="r-chart" data-dyn="1"></div>
+      <details class="tv"><summary>Announcement-day effect on the 10y, by period</summary>
+        <p class="note">bp per 10bp shock, standard errors in brackets.</p>
+        <table>
+          <tr><th class="l">Shock</th><th>10y yield</th><th>Expected rates</th><th>Term premium</th></tr>
+          {% for r in regime_rows %}
+          {% if loop.first or r.regime != regime_rows[loop.index0 - 1].regime %}<tr class="group"><td colspan="4">{{ r.regime }}</td></tr>{% endif %}
+          <tr><td class="l">{{ r.shock }}</td>
+          {% for o in ["d_yield", "d_expectations", "d_term_premium"] %}<td>{{ "%+.2f"|format(r[o][0]) }}<span class="se">({{ "%.2f"|format(r[o][1]) }})</span></td>{% endfor %}</tr>
+          {% endfor %}
+        </table>
+      </details>
+    </div>
+  </section>
+
+  <section id="curve">
+    <div class="kicker">08 · The curve today</div>
+    <h2>The 10-year and its two pieces, every day since 1961</h2>
+    <p class="sub">Each fitted yield is expected short rates plus term premium, from the Adrian, Crump and Moench model, re-estimated
+    on every update. Pick a range; the vertical rules mark episodes worth knowing.</p>
+    <div class="card">{{ fig_history|safe }}</div>
+    <div class="grid-2" style="margin-top:14px">
+      <div class="card"><h3>The curve today</h3><p class="note">Yield and expected short rates by maturity; the shaded gap is the term premium</p>{{ fig_curve|safe }}</div>
+      <div class="card"><h3>Across the curve</h3><p class="note">Levels in %, one-month change in bp</p>
+        <table>
+          <tr><th class="l">Tenor</th><th>Yield</th><th>Expected</th><th>Term prem.</th><th>TP 1m</th></tr>
+          {% for r in curve %}
+          <tr><td class="l strong">{{ r.tenor }}</td><td>{{ "%.2f"|format(r.y) }}</td><td>{{ "%.2f"|format(r.rn) }}</td>
+          <td>{{ "%.2f"|format(r.tp) }}</td><td>{{ "%+.1f"|format(r.tp_d21) }}</td></tr>
+          {% endfor %}
+        </table>
+        <p class="note" style="margin-top:12px">Term premium share of the 10y: <b>{{ "%.0f"|format(tp_share) }}%</b>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="scenario">
+    <div class="kicker">09 · Scenarios</div>
+    <h2>What has a surprise like this done before?</h2>
+    <p class="sub">Size a hypothetical surprise and read off the historical average response, all meetings since 1990. Linear in the
+    shock; point estimates only, so treat it as a base rate, not a forecast.</p>
+    <div class="card">
+      <div class="tabs" id="scen-tabs"><button class="on" data-set="gss" type="button">Target vs path</button><button data-set="jk" type="button">Policy vs information</button></div>
       <div class="scen-controls">
-        <div class="field"><label id="lab-a"></label><input id="scen-a" type="number" step="1" value="10"></div>
-        <div class="field"><label id="lab-b"></label><input id="scen-b" type="number" step="1" value="0"></div>
+        <div class="field"><label id="lab-a" for="scen-a"></label><input id="scen-a" type="number" step="1" value="0"></div>
+        <div class="field"><label id="lab-b" for="scen-b"></label><input id="scen-b" type="number" step="1" value="10"></div>
         <div class="presets" id="presets"></div>
       </div>
       <div id="scen-out"></div>
@@ -354,31 +451,35 @@
   </section>
 
   <section id="validation">
-    <div class="section-head"><span class="idx">07</span><h2>Validation</h2></div>
-    <p class="sub">Both building blocks are checked against published series on every update.</p>
+    <div class="kicker">10 · Validation</div>
+    <h2>Both building blocks match the published series</h2>
+    <p class="sub">The term premium model and the FOMC shocks are rebuilt from scratch and checked against the NY Fed's published
+    term premium and Jarocinski and Karadi's published shocks on every update.</p>
     <div class="grid-4">
-      {% if acm_valid %}<div class="card stat"><div class="big num">{{ acm_valid.corr_10y }}</div><div class="cap">Correlation in levels with the NY Fed's published 10y term premium over {{ acm_valid.months_compared }} months</div></div>
-      {% if acm_valid.corr_10y_daily_changes %}<div class="card stat"><div class="big num">{{ acm_valid.corr_10y_daily_changes }}</div><div class="cap">Correlation in daily changes, the comparison that matters here ({{ acm_valid.corr_10y_monthly_changes }} monthly, {{ acm_valid.corr_10y_fomc_day_changes }} on {{ acm_valid.fomc_days_compared }} FOMC days)</div></div>{% endif %}
-      <div class="card stat"><div class="big num">{{ acm_valid.rmse_10y_bp }}bp</div><div class="cap">Root mean squared gap to the NY Fed series. Anchoring expected rates to the actual T-bill rate, not the curve's extrapolated 1-month point, cut it from 18.6bp</div></div>{% endif %}
-      {% if shock_valid %}<div class="card stat"><div class="big num">{{ shock_valid.meetings }} / {{ shock_valid.meetings }}</div><div class="cap">FOMC shocks matching Jarocinski and Karadi's published series to 8 decimal places</div></div>{% endif %}
+      {% if acm_valid %}{% if acm_valid.corr_10y_daily_changes %}<div class="card stat"><div class="big">{{ acm_valid.corr_10y_daily_changes }}</div><div class="cap">Correlation with the NY Fed's 10y term premium in daily changes, the comparison that matters here ({{ acm_valid.corr_10y_fomc_day_changes }} on {{ acm_valid.fomc_days_compared }} FOMC days)</div></div>{% endif %}
+      <div class="card stat"><div class="big">{{ acm_valid.corr_10y }}</div><div class="cap">Correlation in levels over {{ acm_valid.months_compared }} months</div></div>
+      <div class="card stat"><div class="big">{{ acm_valid.rmse_10y_bp }}bp</div><div class="cap">Average gap to the NY Fed series (root mean square), down from 18.6bp once expected rates are anchored to the actual T-bill rate</div></div>{% endif %}
+      {% if shock_valid %}<div class="card stat"><div class="big">{{ shock_valid.meetings }}/{{ shock_valid.meetings }}</div><div class="cap">FOMC shocks matching Jarocinski and Karadi's published series to 8 decimal places</div></div>{% endif %}
     </div>
-    {% if fig_valid %}<div class="card" style="margin-top:16px"><h3>10y term premium: this project vs NY Fed</h3>{{ fig_valid|safe }}</div>{% endif %}
+    {% if fig_valid %}<div class="card" style="margin-top:14px"><h3>10y term premium: this project vs the NY Fed</h3><p class="note">Monthly, since 1961. The two lines sit on top of each other.</p>{{ fig_valid|safe }}</div>{% endif %}
   </section>
 
   <section id="glossary">
-    <div class="section-head"><span class="idx">08</span><h2>Glossary</h2></div>
-    <div class="card" style="margin-top:16px">
+    <div class="kicker">11 · Glossary</div>
+    <div class="card" style="margin-top:12px">
       <dl class="gloss">
         <dt>Expected short rates</dt><dd>The average overnight rate the market expects over a bond's life. Moves with the Fed's expected policy path.</dd>
         <dt>Term premium</dt><dd>The extra yield investors demand for locking money up in a long bond instead of rolling short bills. Moves with inflation risk, risk appetite, supply and hedging demand.</dd>
         <dt>ACM model</dt><dd>Adrian, Crump and Moench (2013). Estimates the split using five curve factors and the returns on bonds of different maturities. The NY Fed publishes the same series.</dd>
-        <dt>Policy surprise</dt><dd>How much rate futures out to one year moved in the 30 minutes around an FOMC statement. In a window that narrow, nothing else moves the market.</dd>
+        <dt>Guidance (path) surprise</dt><dd>The surprise about where rates go next (statement wording, dots) that leaves today's decision unchanged, measured in the 30 minutes around the statement.</dd>
+        <dt>Target surprise</dt><dd>The surprise in today's rate decision itself.</dd>
         <dt>Monetary policy shock</dt><dd>A surprise where rates and stocks move in opposite directions: a genuine tightening or easing.</dd>
         <dt>Information shock</dt><dd>A surprise where rates and stocks move together: the Fed revealed news about the economy.</dd>
-        <dt>Target and path</dt><dd>Target is the surprise in today's rate decision. Path is the surprise about future rates (guidance, dots) that leaves today's decision unchanged.</dd>
         <dt>Local projection</dt><dd>For each horizon, a regression of the change in a series since the day before the meeting on the shocks. The slopes trace out the response over time.</dd>
-        <dt>5y5y forward</dt><dd>The 5-year interest rate that starts 5 years from today, implied by today's 5y and 10y yields. Shows what markets expect, and demand, for the far future.</dd>
-        <dt>Real yield and breakeven</dt><dd>TIPS pay a yield on top of inflation, so their yield is a real rate. The nominal yield minus the real yield is the breakeven: the inflation rate at which the two bonds pay the same, combining expected inflation and an inflation risk premium.</dd>
+        <dt>5y5y forward</dt><dd>The 5-year interest rate that starts 5 years from today, implied by today's 5y and 10y yields.</dd>
+        <dt>Real yield and breakeven</dt><dd>TIPS pay a yield on top of inflation, so their yield is a real rate. The nominal yield minus the real yield is the breakeven: expected inflation plus an inflation risk premium.</dd>
+        <dt>Refunding statement</dt><dd>The Treasury's quarterly announcement (February, May, August, November) of how much 3-, 10- and 30-year debt it will auction, and its plans for coupon sizes.</dd>
+        <dt>10-year equivalent</dt><dd>A way to add up bonds of different maturities by how much rate risk they carry: a 30-year bond counts as about three 10-year bonds.</dd>
         <dt>bp</dt><dd>Basis point, one hundredth of a percentage point.</dd>
       </dl>
     </div>
@@ -387,39 +488,69 @@
 
 <footer><div class="wrap">
   <div><h4>Data</h4>Federal Reserve Board (Gurkaynak, Sack and Wright yield curve) &middot; Jarocinski and Karadi FOMC surprises (CC BY 4.0) &middot;
-  FRED &middot; Federal Reserve Bank of New York (validation only). Not investment advice.</div>
+  FRED &middot; US Treasury (Monthly Statement of the Public Debt, auction results) &middot; Federal Reserve Bank of New York (SOMA holdings; term premium for validation only). Not investment advice.</div>
   <div><h4>Method</h4>Adrian, Crump and Moench (2013) &middot; Gurkaynak, Sack and Swanson (2005) &middot; Jarocinski and Karadi (2020) &middot;
-  Jorda (2005). Full <a href="{{ repo_url }}/blob/main/docs/methodology.md">methodology</a> and code on <a href="{{ repo_url }}">GitHub</a>.</div>
+  Jorda (2005) &middot; Greenwood and Vayanos (2014). Full <a href="{{ repo_url }}/blob/main/docs/methodology.md">methodology</a> and code on <a href="{{ repo_url }}">GitHub</a>.</div>
 </div></footer>
 
 <script>
-const C = {{ colours|tojson }};
-const BASE_LAYOUT = {
-  paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: {family: C.font, size: 12, color: C.ink2},
-  margin: {l: 48, r: 12, t: 30, b: 36}, hovermode: "x unified",
-  legend: {orientation: "h", y: 1.02, yanchor: "bottom", x: 0},
-  hoverlabel: {bgcolor: "white", bordercolor: C.grid, font: {family: C.font, color: C.charcoal}},
-  xaxis: {showgrid: false, linecolor: C.grid, zeroline: false}, yaxis: {gridcolor: C.grid, zeroline: false, ticksuffix: "bp"}
-};
+const LIGHT = {{ light|tojson }}, DARK = {{ dark|tojson }}, SWAP = {{ swap|tojson }};
+const FONT = {{ font|tojson }};
+let C = LIGHT;
 const fmt = (v, d = 1) => (v >= 0 ? "+" : "") + v.toFixed(d);
+const CFG = {displaylogo: false, responsive: true, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d", "zoomIn2d", "zoomOut2d"]};
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[ch]));
 
-// ---- tabs for the impulse responses
-document.querySelectorAll('#transmission .tabs button').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('#transmission .tabs button').forEach(x => x.classList.toggle('on', x === b));
-  document.querySelectorAll('#transmission .panel').forEach(p => p.classList.toggle('on', p.id === b.dataset.panel));
-  document.querySelectorAll('#' + b.dataset.panel + ' .js-plotly-plot').forEach(el => Plotly.Plots.resize(el));
-}));
+function baseLayout(h) {
+  return {height: h, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: {family: FONT, size: 12, color: C.ink2}, margin: {l: 52, r: 20, t: 36, b: 44}, hovermode: "x unified",
+    legend: {orientation: "h", y: 1.0, yanchor: "bottom", x: 0},
+    hoverlabel: {bgcolor: C.surface, bordercolor: C.grid, font: {family: FONT, color: C.ink}},
+    xaxis: {showgrid: false, linecolor: C.axis, ticks: "outside", tickcolor: C.axis, zeroline: false, tickfont: {color: C.muted},
+            showspikes: true, spikemode: "across", spikethickness: 1, spikecolor: C.axis, spikedash: "solid", spikesnap: "cursor"},
+    yaxis: {gridcolor: C.grid, zeroline: false, ticksuffix: "bp", tickfont: {color: C.muted}},
+    shapes: [{type: "line", xref: "paper", x0: 0, x1: 1, y0: 0, y1: 0, line: {color: C.axis, width: 1}, layer: "below"}]};
+}
+
+// ---- theme: swap every light colour in the server-built charts for its dark twin
+function recolor(o, map) {
+  if (typeof o === "string") return map[o] || o;
+  if (Array.isArray(o)) return (o.length && typeof o[0] !== "string" && typeof o[0] !== "object") ? o : o.map(v => recolor(v, map));
+  if (o && typeof o === "object" && !ArrayBuffer.isView(o)) { const r = {}; for (const k in o) r[k] = recolor(o[k], map); return r; }
+  return o;
+}
+function themeName() { return document.documentElement.dataset.theme === "dark" ? "dark" : "light"; }
+function applyTheme() {
+  const dark = themeName() === "dark"; C = dark ? DARK : LIGHT;
+  document.getElementById("theme-btn").textContent = dark ? "Light" : "Dark";
+  document.querySelectorAll(".js-plotly-plot").forEach(el => {
+    if (el.dataset.dyn) return;
+    if (!el._light) el._light = {data: el.data, layout: recolor(el.layout, {})};
+    Plotly.react(el, dark ? recolor(el._light.data, SWAP) : el._light.data,
+                 dark ? recolor(el._light.layout, SWAP) : recolor(el._light.layout, {}), CFG);
+  });
+  if (window.redrawDynamic) window.redrawDynamic();
+}
+document.getElementById("theme-btn").addEventListener("click", () => {
+  const next = themeName() === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next; try { localStorage.setItem("theme", next); } catch (e) {}
+  applyTheme();
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", e => {
+  let saved = null; try { saved = localStorage.getItem("theme"); } catch (err) {}
+  if (!saved) { document.documentElement.dataset.theme = e.matches ? "dark" : "light"; applyTheme(); }
+});
 
 // ---- history chart: rescale the y-axis to the date range in view
 (function () {
   const el = document.getElementById("fig-history"); if (!el) return;
   let busy = false;
   el.on("plotly_relayout", ev => {
-    if (busy || ev["yaxis.range[0]"] !== undefined) return;
+    if (busy || ev["yaxis.range[0]"] !== undefined || !el.layout.xaxis.range) return;
     const xr = el.layout.xaxis.range.map(d => new Date(d));
     let lo = Infinity, hi = -Infinity;
-    el.data.forEach(tr => tr.x.forEach((x, i) => { const t = new Date(x);
-      if (t >= xr[0] && t <= xr[1]) { lo = Math.min(lo, tr.y[i]); hi = Math.max(hi, tr.y[i]); } }));
+    el.data.forEach(tr => { if (!tr.x || !tr.y) return; for (let i = 0; i < tr.x.length; i++) { const t = new Date(tr.x[i]);
+      if (t >= xr[0] && t <= xr[1]) { lo = Math.min(lo, tr.y[i]); hi = Math.max(hi, tr.y[i]); } } });
     if (!isFinite(lo)) return;
     const pad = 0.08 * (hi - lo || 1); busy = true;
     Plotly.relayout(el, {"yaxis.range": [lo - pad, hi + pad]}).then(() => { busy = false; });
@@ -434,28 +565,31 @@ function showMeeting(date) {
   const i = MEETINGS.findIndex(m => m.date === date); if (i < 0) return;
   const m = MEETINGS[i]; sel.value = date;
   document.getElementById("m-when").textContent = "FOMC announcement, " + m.label;
-  document.getElementById("m-what").innerHTML = `${m.kind} shock, ${m.dir} <span class="pill ${m.kind === 'Information' ? 'info' : ''}">larger than ${m.size_pct}% of meetings</span>`;
-  const stockWord = m.sp500 > 0 ? "rose" : "fell";
+  const what = document.getElementById("m-what"); what.textContent = `${m.kind} shock, ${m.dir} `;
+  const pill = document.createElement("span"); pill.className = "pill"; pill.textContent = `larger than ${m.size_pct}% of meetings`; what.appendChild(pill);
   const reading = m.kind === "Information"
     ? "Rates and stocks moved the same way, so the market read the statement mainly as news about the economy."
     : "Rates and stocks moved in opposite directions, so the market read the statement mainly as a change in policy stance.";
   document.getElementById("m-text").textContent =
-    `In the 30 minutes around the statement, rate futures priced ${fmt(m.pc1)}bp ${m.pc1 > 0 ? "more tightening" : "less tightening"} over the next year and the S&P 500 ${stockWord} ${Math.abs(m.sp500).toFixed(2)}%. ${reading}`;
+    `In the 30 minutes around the statement, rate futures priced ${fmt(m.pc1)}bp ${m.pc1 > 0 ? "more" : "less"} tightening over the next year and the S&P 500 ${m.sp500 > 0 ? "rose" : "fell"} ${Math.abs(m.sp500).toFixed(2)}%. ${reading}`;
   const rows = [["Policy surprise", m.pc1], ["Monetary policy shock", m.mp], ["Information shock", m.info],
                 ["Target (today's rate)", m.target], ["Path (guidance)", m.path]];
-  const d0 = m.h.indexOf(0), dEnd = m.h.length - 1;
+  const d0 = m.h.indexOf(0);
   let t = "<tr><th class='l'>Component</th><th>bp</th></tr>" + rows.map(r => `<tr><td class='l'>${r[0]}</td><td>${fmt(r[1])}</td></tr>`).join("");
   if (d0 >= 0) t += `<tr class="group"><td colspan="2">10y on the day: ${fmt(m.y120[d0])}bp, of which term premium ${fmt(m.tp120[d0])}bp</td></tr>`;
   document.getElementById("m-table").innerHTML = t;
-  const tr = (key, name, colour, dash, w) => ({x: m.h, y: m[key], name, mode: "lines", line: {color: colour, width: w || 2, dash: dash || "solid"}, hovertemplate: "%{y:+.1f}bp"});
-  const layout = JSON.parse(JSON.stringify(BASE_LAYOUT));
-  layout.height = 320; layout.xaxis.title = {text: "trading days from meeting", font: {size: 11}};
-  layout.shapes = [{type: "line", x0: 0, x1: 0, yref: "paper", y0: 0, y1: 1, line: {color: "#c3cad3", dash: "dot", width: 1}},
-                   {type: "line", xref: "paper", x0: 0, x1: 1, y0: 0, y1: 0, line: {color: C.muted, width: 1}}];
-  Plotly.react("m-chart", [tr("y120", "10y yield", C.charcoal, null, 1.6), tr("rn120", "Expected rates", C.navy),
-    tr("tp120", "Term premium", C.sky), tr("y24", "2y yield", C.muted, "dot", 1.4)], layout, {displaylogo: false, responsive: true});
+  window._meeting = m; drawMeeting();
   document.getElementById("m-prev").disabled = i === 0;
   document.getElementById("m-next").disabled = i === MEETINGS.length - 1;
+}
+function drawMeeting() {
+  const m = window._meeting; if (!m) return;
+  const tr = (key, name, colour, w) => ({x: m.h, y: m[key], name, mode: "lines", line: {color: colour, width: w || 2}, hovertemplate: "%{y:+.1f}bp"});
+  const layout = baseLayout(320);
+  layout.xaxis.title = {text: "trading days from meeting", font: {size: 11, color: C.muted}};
+  layout.shapes.push({type: "line", x0: 0, x1: 0, yref: "paper", y0: 0, y1: 1, line: {color: C.grid, width: 1}, layer: "below"});
+  Plotly.react("m-chart", [tr("y24", "2y yield", C.second), tr("rn120", "Expected rates", C.muted),
+    tr("y120", "10y yield", C.ink, 1.5), tr("tp120", "Term premium", C.accent, 2.5)], layout, CFG);
 }
 sel.addEventListener("change", () => showMeeting(sel.value));
 document.getElementById("m-prev").addEventListener("click", () => { const i = MEETINGS.findIndex(m => m.date === sel.value); if (i > 0) showMeeting(MEETINGS[i - 1].date); });
@@ -463,44 +597,80 @@ document.getElementById("m-next").addEventListener("click", () => { const i = ME
 showMeeting(MEETINGS[MEETINGS.length - 1].date);
 const shocksEl = document.getElementById("fig-shocks");
 if (shocksEl) shocksEl.on("plotly_click", ev => { const d = ev.points[0].customdata;
-  if (d) { showMeeting(d); document.getElementById("fomc").scrollIntoView(); } });
+  if (d) { showMeeting(d); document.getElementById("explore").scrollIntoView(); } });
+
+// ---- every response
+const EXP = {{ explore_json|safe }};
+const EXP_LABELS = {{ explore_labels|tojson }};
+const UNITS = {{ units|tojson }};
+const PAIRS = {gss: [["target", "Target: today's rate"], ["path", "Path: guidance"]],
+               jk: [["MP_median", "Monetary policy shock"], ["CBI_median", "Information shock"]]};
+const rOut = document.getElementById("r-outcome");
+EXP_LABELS.forEach(([k, v]) => { if (EXP.all && EXP.all.path && EXP.all.path[k]) { const o = document.createElement("option"); o.value = k; o.textContent = v; rOut.appendChild(o); } });
+rOut.value = "tp120";
+let rPair = "gss", rEra = "2008-present";
+function drawResponses() {
+  const o = rOut.value, u = UNITS[o] || "bp", data = [];
+  PAIRS[rPair].forEach(([s, name], k) => {
+    const d = EXP[rEra] && EXP[rEra][s] && EXP[rEra][s][o]; if (!d) return;
+    const col = k === 0 ? C.second : C.accent, band = k === 0 ? C.second_band : C.accent_band;
+    const lo = d.c.map((c, i) => c - 1.645 * d.s[i]), hi = d.c.map((c, i) => c + 1.645 * d.s[i]);
+    data.push({x: d.h.concat(d.h.slice().reverse()), y: hi.concat(lo.slice().reverse()), fill: "toself", fillcolor: band,
+               line: {width: 0}, mode: "lines", hoverinfo: "skip", showlegend: false});
+    data.push({x: d.h, y: d.c, name, mode: "lines", line: {color: col, width: 2.5}, hovertemplate: `%{y:+.2f}${u}`});
+  });
+  const layout = baseLayout(380);
+  layout.yaxis.ticksuffix = u;
+  layout.xaxis.title = {text: "trading days after the meeting", font: {size: 11, color: C.muted}};
+  layout.xaxis.tickvals = [0, 10, 20, 30, 40, 50, 60];
+  Plotly.react("r-chart", data, layout, CFG);
+}
+rOut.addEventListener("change", drawResponses);
+[["r-pair", v => { rPair = v; }], ["r-era", v => { rEra = v; }]].forEach(([id, set]) =>
+  document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll(`#${id} button`).forEach(x => x.classList.toggle("on", x === b)); set(b.dataset.v); drawResponses(); })));
+
+window.redrawDynamic = () => { drawMeeting(); drawResponses(); };
 
 // ---- scenario tool
 const SCEN = {{ scen_json|safe }};
 const LABEL_LIST = {{ labels|tojson }};
-const LABELS = Object.fromEntries(LABEL_LIST);
-const UNITS = {{ units|tojson }};
+const SLABELS = Object.fromEntries(LABEL_LIST);
 const SETS = {
   jk: {a: "MP_median", b: "CBI_median", la: "Monetary policy shock (bp)", lb: "Information shock (bp)",
        presets: [["Hawkish tightening", 10, 0], ["Upbeat Fed", 0, 10], ["Dovish surprise", -10, 0]]},
   gss: {a: "target", b: "path", la: "Target: today's rate (bp)", lb: "Path: guidance (bp)",
-        presets: [["Surprise 25bp cut", -25, 0], ["Hawkish dots", 0, 10], ["Cut, hawkish guidance", -10, 10]]}
+        presets: [["Hawkish dots", 0, 10], ["Surprise 25bp cut", -25, 0], ["Cut, hawkish guidance", -10, 10]]}
 };
-let current = "jk";
+let current = "gss";
 function setPreset(a, b) { document.getElementById("scen-a").value = a; document.getElementById("scen-b").value = b; renderScen(); }
 function renderScen() {
   const s = SETS[current];
   document.getElementById("lab-a").textContent = s.la; document.getElementById("lab-b").textContent = s.lb;
-  document.getElementById("presets").innerHTML = s.presets.map(p => `<button class="btn-sm" onclick="setPreset(${p[1]},${p[2]})">${p[0]}</button>`).join("");
+  const pr = document.getElementById("presets"); pr.innerHTML = "";
+  s.presets.forEach(p => { const b = document.createElement("button"); b.className = "btn-sm"; b.type = "button"; b.textContent = p[0];
+    b.addEventListener("click", () => setPreset(p[1], p[2])); pr.appendChild(b); });
   const a = parseFloat(document.getElementById("scen-a").value) || 0, b = parseFloat(document.getElementById("scen-b").value) || 0;
   const outcomes = LABEL_LIST.map(x => x[0]).filter(o => SCEN[s.a] && SCEN[s.a][o]);
   const hs = SCEN[s.a][outcomes[0]].h;
   let html = "<table><tr><th class='l'>Series</th>" + hs.map(h => `<th class='${h === 20 ? "hl" : ""}'>Day ${h}</th>`).join("") + "</tr>";
   for (const o of outcomes) {
     const u = UNITS[o] || "bp";
-    html += `<tr><td class='l'>${LABELS[o]} <span class='se'>${u}</span></td>`;
+    html += `<tr><td class='l'>${esc(SLABELS[o])} <span class='se'>${u}</span></td>`;
     hs.forEach((h, i) => { const v = a / 10 * SCEN[s.a][o].coef[i] + b / 10 * SCEN[s.b][o].coef[i];
       html += `<td class='${h === 20 ? "hl" : ""}'>${fmt(v, u === "%" ? 2 : 1)}</td>`; });
     html += "</tr>";
   }
   document.getElementById("scen-out").innerHTML = html + "</table>";
 }
-document.querySelectorAll('#scen-tabs button').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('#scen-tabs button').forEach(x => x.classList.toggle('on', x === b));
+document.querySelectorAll("#scen-tabs button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("#scen-tabs button").forEach(x => x.classList.toggle("on", x === b));
   current = b.dataset.set; const p = SETS[current].presets[0]; setPreset(p[1], p[2]);
 }));
 ["scen-a", "scen-b"].forEach(id => document.getElementById(id).addEventListener("input", renderScen));
 renderScen();
+
+applyTheme();
 </script>
 </body>
 </html>

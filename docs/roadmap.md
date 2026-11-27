@@ -10,9 +10,20 @@
 - Robustness: by period, scheduled meetings only, excluding 2020, bias-corrected VAR
 - Dashboard with meeting explorer, scenario tool and plain-English summaries; daily refresh via GitHub Actions
 
-## Next projects that build on this one
-- **Treasury supply.** Refunding announcement and auction surprises, and their effect on the term premium
-  series built here.
+## Done (v1.1)
+- Live scorecard for the Research Notes #1 call, graded on every meeting since Warsh became chair
+- Scheduled-meeting flag taken from the Fed's calendar (the JK labels missed 11 unscheduled announcements)
+- Dashboard rebuilt as an argument: one claim per section, validated colour roles, light and dark mode,
+  a table view under every headline chart
+- **Treasury supply, first pass.** Private duration supply by security since 2003 (MSPD minus SOMA, 10-year
+  equivalents) and an event study of the quarterly refunding statements since 2009
+
+## Next
+- **Treasury supply, second pass.** Refunding *surprises* rather than raw size changes (sizes are usually
+  signalled a quarter ahead): dealer survey expectations, or the change against the previous statement's
+  guidance language. Intraday 10y moves around the 8:30am release, once intraday data is available.
+- **Event volatility.** Option-implied event variance around FOMC and CPI dates vs the realised moves this
+  project measures.
 - **Event volatility.** Option-implied event variance around FOMC and CPI dates vs the realised moves this
   project measures.
 - **Global spillovers** (separate repo). These shocks fed into EM sovereign spreads, FX and capital flows.

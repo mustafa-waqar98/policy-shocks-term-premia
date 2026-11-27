@@ -242,6 +242,43 @@ reinvestment, maturity extension, tapering, runoff). The list is hand-coded in `
 
 ---
 
+## 6. Treasury supply
+
+### Private duration supply
+
+For each month-end since January 2001, Treasury's Monthly Statement of the Public Debt (table 3) lists every
+marketable bill, note, bond, TIPS and FRN outstanding. From July 2003 the NY Fed's SOMA file gives the Fed's
+holding of each security. Matching the two by CUSIP gives the amount the private market holds of each security,
+$a_i$, with remaining maturity $m_i$ in years (FRNs count as one week, since they reset weekly; TIPS at par).
+Three summaries, each over nominal GDP $Y$:
+
+$$\text{debt-years} = \frac{\sum_i a_i m_i}{Y}, \qquad
+\text{10-year equivalents} = \frac{1}{Y}\sum_i a_i \frac{m_i e^{-y m_i}}{10\, e^{-10 y}}, \quad y = 4\%$$
+
+and the share of total duration the Fed holds. Debt-years is the maturity-weighted debt-to-GDP of Greenwood and
+Vayanos (2014); the 10-year-equivalent weight is the dollar duration of a zero-coupon bond of maturity $m_i$
+relative to a 10-year one.
+
+### Refunding statements
+
+Each quarter the Treasury announces the sizes of the 3-, 10- and 30-year auctions at 8:30am in its refunding
+statement. In the auction file those auctions carry the statement date as their announcement date, which gives
+the event dates. Only auctions announced the same morning as the 10-year count, which excludes the February
+30-year TIPS. Supply news is the change in announced size against the previous refunding, in 10-year
+equivalents ($\Delta S = \Delta s_3 \cdot 0.3 + \Delta s_{10} + \Delta s_{30} \cdot 3$). For each statement
+since 2009 with no FOMC announcement on the day or the day after,
+
+$$\Delta y_t = \alpha + \beta\, \frac{\Delta S_t}{10} + \varepsilon_t$$
+
+with $\Delta y_t$ the move in the 10y yield (and its expected-rate and term premium pieces) from the close before
+the statement to its close. A second window starts at the close before Monday's borrowing estimate, with FOMC
+announcements anywhere from Monday to Thursday excluded. Treasury usually signals size changes a quarter ahead,
+so $\Delta S$ overstates the news and $\beta$ is a lower bound on the response to genuine surprises.
+
+Code: [`src/tpshock/supply/`](../src/tpshock/supply/)
+
+---
+
 ## References
 
 - Adrian, T., Crump, R. and Moench, E. (2013). Pricing the term structure with linear regressions. *Journal of Financial Economics* 110(1).
@@ -250,4 +287,5 @@ reinvestment, maturity extension, tapering, runoff). The list is hand-coded in `
 - Gurkaynak, R., Sack, B. and Swanson, E. (2005). Do actions speak louder than words? *International Journal of Central Banking* 1(1).
 - Gurkaynak, R., Sack, B. and Wright, J. (2007). The U.S. Treasury yield curve: 1961 to the present. *Journal of Monetary Economics* 54(8).
 - Jarocinski, M. and Karadi, P. (2020). Deconstructing monetary policy surprises: the role of information shocks. *AEJ: Macroeconomics* 12(2).
+- Greenwood, R. and Vayanos, D. (2014). Bond supply and excess bond returns. *Review of Financial Studies* 27(3).
 - Jorda, O. (2005). Estimation and inference of impulse responses by local projections. *American Economic Review* 95(1).

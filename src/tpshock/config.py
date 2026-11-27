@@ -50,6 +50,12 @@ BALANCE_SHEET_DATES = [
     "2020-03-23", "2020-06-10", "2020-12-16", "2021-11-03", "2021-12-15", "2022-01-26",
     "2022-03-16", "2022-05-04", "2024-05-01", "2025-03-19", "2025-10-29",
 ]
+# Scheduled FOMC decision dates, 1994-09-27 onward (from the Fed's calendars). Used to flag
+# unscheduled announcements: the JK file only marks an event unscheduled when its label says so,
+# which misses e.g. the 2008-11-25 QE1 announcement and the 2020-03-03 emergency cut.
+FOMC_SCHEDULED_FILE = ROOT / "data" / "reference" / "fomc_scheduled.csv"
+FOMC_SCHEDULED_START = "1994-09-27"
+
 # Scorecard for the Research Notes #1 call: every FOMC decision day since Warsh became chair.
 # Add each new meeting here as the Fed publishes its calendar (federalreserve.gov/monetarypolicy/fomccalendars.htm).
 SCORECARD_MEETINGS = ["2026-06-17", "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09"]
