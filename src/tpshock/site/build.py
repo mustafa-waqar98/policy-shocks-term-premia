@@ -359,6 +359,16 @@ def build(out_dir: Path = config.SITE_OUT):
     if (P / "single_meeting.csv").exists():
         single = pd.read_csv(P / "single_meeting.csv").to_dict("records")
 
+    card, card_tally, card_ref = None, None, None
+    if (P / "scorecard.csv").exists():
+        card = pd.read_csv(P / "scorecard.csv", keep_default_na=False).to_dict("records")
+        card_tally = read_json("scorecard_meta.json")
+        if single:
+            ref = {r["test"]: r for r in single}
+            r3 = ref.get("Real 5y5y moves with the day-0 2y (2y moved at least 3bp)")
+            if r3:
+                card_ref = {"fomc": r3["fomc_rate"], "control": r3["control_rate"], "n": r3["meetings"]}
+
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=True)
     html = env.get_template("index.html").render(
         updated=datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC"),
@@ -370,7 +380,8 @@ def build(out_dir: Path = config.SITE_OUT):
         fig_irf_jk=_html(fig_irf(irf, ("MP_median", "CBI_median"))),
         fig_irf_gss=_html(fig_irf(irf, ("target", "path"))),
         fig_valid=fig_validation(P / "acm_vs_official.csv"), fig_fwd=fig_forwards(P / "irf_forwards.csv"),
-        regime_rows=regime_rows, robust=robust, single=single, acm_valid=read_json("acm_validation.json"),
+        regime_rows=regime_rows, robust=robust, single=single, card=card, card_tally=card_tally,
+        card_ref=card_ref, acm_valid=read_json("acm_validation.json"),
         shock_valid=read_json("shocks_validation.json"),
         labels=list(LABELS.items()), units=UNITS, scen_json=json.dumps(scen),
         meetings_json=json.dumps(meeting_explorer(daily, fomc_days)), repo_url=config.REPO_URL,

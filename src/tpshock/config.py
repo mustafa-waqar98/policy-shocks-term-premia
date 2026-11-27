@@ -50,6 +50,10 @@ BALANCE_SHEET_DATES = [
     "2020-03-23", "2020-06-10", "2020-12-16", "2021-11-03", "2021-12-15", "2022-01-26",
     "2022-03-16", "2022-05-04", "2024-05-01", "2025-03-19", "2025-10-29",
 ]
+# Scorecard for the Research Notes #1 call: every FOMC decision day since Warsh became chair.
+# Add each new meeting here as the Fed publishes its calendar (federalreserve.gov/monetarypolicy/fomccalendars.htm).
+SCORECARD_MEETINGS = ["2026-06-17", "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09"]
+SCORECARD_CALLS = {"2026-12-09": "Research Notes #1 call"}
 FORWARD_OUTCOMES = {
     "fwd_nominal": "5y5y nominal forward",
     "fwd_expected": "of which: expected rates",

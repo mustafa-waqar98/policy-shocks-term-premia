@@ -50,6 +50,10 @@ Per 10bp shock, FOMC announcements 1990 to 2026. Full tables, robustness checks 
    against 54% in 20-day windows with no meeting (p = 0.02, two-sided, block bootstrap). "Real moves more than
    breakeven" shows no edge at all (63% vs 64%): it is how TIPS behave, not a Fed effect. See
    `src/tpshock/transmission/single_meeting.py`.
+6. **Tracked live.** The same single-meeting rule is graded on every FOMC decision since Warsh became chair
+   (he dropped forward guidance in June 2026) in the dashboard's scorecard, updated every weekday. For
+   comparison, the rule shows no edge in 2003 to 2007 (52% of 31 meetings against 60%). See
+   `src/tpshock/transmission/scorecard.py`.
 
 Caveats: the TIPS pieces start in 2003 (204 meetings) and use par yields; bands are wide beyond 20 trading days;
 model-based term premium levels are less reliable than their changes.

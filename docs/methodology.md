@@ -223,6 +223,18 @@ meeting-day move, and not tuned; the other cutoffs are shown so that can be judg
 
 Code: [`src/tpshock/transmission/single_meeting.py`](../src/tpshock/transmission/single_meeting.py)
 
+### Live scorecard
+
+The rule above is also graded meeting by meeting for every FOMC decision since June 2026, when Warsh became
+chair and the statement dropped forward guidance. For each meeting in `config.SCORECARD_MEETINGS`: the day-0 2y
+move (DGS2), and the change in the real 5y5y forward, 2 x DFII10 - DFII5, from the close before the meeting to
+the close 20 trading days after it. A hit means the two have the same sign. It is a miss if the real forward
+moves the other way, ends the window unchanged at two decimals, or if the 2y does not move on the day. Meetings
+with a 2y move under 3bp are graded the same way and flagged. Windows still open are shown with the days
+elapsed. New meetings are added to the config list as the Fed publishes its calendar.
+
+Code: [`src/tpshock/transmission/scorecard.py`](../src/tpshock/transmission/scorecard.py)
+
 ### Balance sheet announcements
 
 The post-2008 robustness checks drop FOMC meetings whose statement included balance sheet news (asset purchases,

@@ -10,6 +10,7 @@ from tpshock import config
 from tpshock.data import acm_official, fomc, fred, gsw
 from tpshock.models.acm import ACM
 from tpshock.shocks.identify import build_shocks
+from tpshock.transmission import scorecard
 from tpshock.transmission.forwards import forward_panel
 from tpshock.transmission.lp import fomc_day_table, local_projections, ols
 from tpshock.transmission.robustness import robustness_table
@@ -191,6 +192,11 @@ def transmission():
         sm.round(4).to_csv(P / "single_meeting.csv", index=False)
         (P / "single_meeting_meta.json").write_text(json.dumps(
             {"zero_2y_moves_on_meeting_days": sm.attrs.get("zero_2y_moves_on_meeting_days")}, indent=2))
+    # Live scorecard for the published call
+    if {"DGS2", "DFII5", "DFII10"} <= set(all_fred.columns):
+        card = scorecard.score(all_fred, config.SCORECARD_MEETINGS, config.SCORECARD_CALLS)
+        card.to_csv(P / "scorecard.csv", index=False)
+        (P / "scorecard_meta.json").write_text(json.dumps(scorecard.tally(card), indent=2))
     log.info("transmission done: %s meetings", len(table))
 
 

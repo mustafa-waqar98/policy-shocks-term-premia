@@ -307,6 +307,31 @@
       </table>
     </div>
     {% endif %}
+    {% if card %}
+    <div class="card" id="scorecard">
+      <h3>Scorecard: the call, meeting by meeting</h3>
+      <p class="note">Every FOMC decision since Warsh became chair, graded on the rule published in Research Notes #1:
+      over the 20 trading days from the close before the meeting, the real 5y5y forward (2 x DFII10 - DFII5) moves
+      the same way the 2y (DGS2) moved on the meeting day. Unchanged at two decimals, or no 2y move, counts as a miss.
+      Updates itself every weekday.{% if card_ref %} Backtest since 2008, meetings with a 2y move of 3bp or more:
+      {{ "%.0f"|format(100 * card_ref.fomc) }}% hits against {{ "%.0f"|format(100 * card_ref.control) }}% in
+      windows with no meeting.{% endif %}</p>
+      {% if card_tally %}
+      <p class="note"><b>So far: {{ card_tally.hits }} of {{ card_tally.scored }}</b>{% if card_tally.scored_big != card_tally.scored %} ({{ card_tally.hits_big }} of {{ card_tally.scored_big }} with a 2y move of 3bp or more){% endif %}.
+      Far too few meetings to tell the backtest rate from the no-meeting rate; this is a running check, not a verdict.</p>
+      {% endif %}
+      <table>
+        <tr><th class="l">Meeting</th><th>2y on the day</th><th>Real 5y5y, 20 days</th><th>Window closes</th><th class="l">Result</th></tr>
+        {% for r in card %}
+        <tr><td class="l">{{ r.meeting }}{% if r.note %} <span class="tstat">{{ r.note }}</span>{% endif %}</td>
+        <td>{% if r.d2y_bp != "" %}{{ "%+.0f"|format(r.d2y_bp|float) }}bp{% if r.big_move in ("False", False) %} <span class="tstat">under 3bp</span>{% endif %}{% endif %}</td>
+        <td>{% if r.real_bp != "" %}{{ "%+.0f"|format(r.real_bp|float) }}bp{% endif %}</td>
+        <td>{{ r.window_end }}</td>
+        <td class="l"><span class="{{ 'sig' if r.result == 'hit' else 'insig' }}">{{ r.result }}</span></td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
   </section>
   {% endif %}
 
